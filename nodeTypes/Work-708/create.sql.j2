@@ -11,6 +11,10 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {%- if node.materializationType == 'table' %}
 
     {# CreateSQL for Table #}
+    {%- set ns = namespace(hasDefault=false) %}
+    {%- for col in columns %}
+        {%- if col.defaultValue %}{%- set ns.hasDefault = true %}{%- endif %}
+    {%- endfor %}
     {{ stage('Create ' + node.materializationType ) }}
 	CREATE OR REPLACE {{ node.materializationType }} {{ ref_no_link(node.location.name, node.name) }}
 	(
@@ -18,12 +22,12 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 			`{{ col.name }}` {{ col.dataType }}
 			{%- if col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- endif %}
 			{%- if col.nullable == false %} NOT NULL {%- endif %}
-			{%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %} 
+			{%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %}
 			{%- if not loop.last -%}, {%- endif %}
 		{%- endfor %}
 	)
 	{%- if node.description | trim | length > 0 %} COMMENT '{{ node.description | escape }}'{% endif %}
-    TBLPROPERTIES('delta.columnMapping.mode' = 'name')
+    TBLPROPERTIES('delta.columnMapping.mode' = 'name'{%- if ns.hasDefault %}, 'delta.feature.allowColumnDefaults' = 'supported'{%- endif %})
 
 {%- elif node.materializationType == 'view' %}
 
