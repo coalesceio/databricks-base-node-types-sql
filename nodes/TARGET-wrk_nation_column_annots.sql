@@ -1,4 +1,4 @@
-@id("5f6a5fa0-69ab-469b-bc95-cb9ef3202fdb")
+@id("24fb194f-5eaf-42b8-ac91-42e81026acd9")
 @nodeType("708")
 SELECT
      `n_nationkey` AS `n_nationkey` @not_null @uniqueness,

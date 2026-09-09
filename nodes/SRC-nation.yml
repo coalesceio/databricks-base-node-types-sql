@@ -1,5 +1,5 @@
 fileVersion: 1
-id: e88aeca3-3577-48bc-87ed-de3f5fa4c023
+id: 952b2554-80c7-45ed-af18-0b544a9eadef
 name: nation
 operation:
   database: ""
@@ -13,8 +13,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: ea8d2306-92e5-472f-b021-c78b53185bda
-          stepCounter: e88aeca3-3577-48bc-87ed-de3f5fa4c023
+          columnCounter: 2c138d44-032d-4c1f-9fb6-5c5ff47657f8
+          stepCounter: 952b2554-80c7-45ed-af18-0b544a9eadef
         config: {}
         dataType: LONG
         defaultValue: ""
@@ -30,8 +30,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 936d3164-9050-40df-807b-d613a69c37de
-          stepCounter: e88aeca3-3577-48bc-87ed-de3f5fa4c023
+          columnCounter: 702ce79f-ec59-4228-8844-92e332b269a0
+          stepCounter: 952b2554-80c7-45ed-af18-0b544a9eadef
         config: {}
         dataType: STRING
         defaultValue: ""
@@ -47,8 +47,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: cb7652db-72c6-4860-ab81-d2e5f1c8b49e
-          stepCounter: e88aeca3-3577-48bc-87ed-de3f5fa4c023
+          columnCounter: 7df9f8db-e5bc-4086-9bc2-871b9b66a7a0
+          stepCounter: 952b2554-80c7-45ed-af18-0b544a9eadef
         config: {}
         dataType: LONG
         defaultValue: ""
@@ -64,13 +64,30 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 7b852600-ae97-4a89-97c8-5001281ce743
-          stepCounter: e88aeca3-3577-48bc-87ed-de3f5fa4c023
+          columnCounter: a496067a-4443-4b5a-bf82-ecf0f2159745
+          stepCounter: 952b2554-80c7-45ed-af18-0b544a9eadef
         config: {}
         dataType: STRING
         defaultValue: ""
         description: ""
         name: n_comment
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 7c8fc941-2e23-4bf6-ac84-50f17a0b375b
+          stepCounter: 952b2554-80c7-45ed-af18-0b544a9eadef
+        config: {}
+        dataType: TIMESTAMP
+        defaultValue: ""
+        description: ""
+        name: timestamp_col
         nullable: true
         sourceColumnReferences:
           - columnReferences: []

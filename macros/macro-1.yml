@@ -78,10 +78,10 @@ macroString: |-
                 {%- endif -%}
                 {%- if col.freshness is defined and col.freshness.parameters is defined -%}
                     {{ test_stage(col.name + ': freshness', columnContinueOnFailure) }}
-                    SELECT MAX(CAST({{ colName }} AS DATETIME)) AS `LATEST_VALUE`
+                    SELECT MAX(CAST({{ colName }} AS TIMESTAMP)) AS `LATEST_VALUE`
                     FROM {{ target }}
-                    HAVING MAX(CAST({{ colName }} AS DATETIME)) IS NULL
-                        OR MAX(CAST({{ colName }} AS DATETIME)) < DATETIME_SUB(CURRENT_DATETIME(), INTERVAL {{ col.freshness.parameters[0] }} {{ col.freshness.parameters[1] | default('DAY', true) }})
+                    HAVING MAX(CAST({{ colName }} AS TIMESTAMP)) IS NULL
+                        OR MAX(CAST({{ colName }} AS TIMESTAMP)) < CURRENT_TIMESTAMP() - INTERVAL {{ col.freshness.parameters[0] }} {{ col.freshness.parameters[1] | default('DAY', true) }}
                 {%- endif -%}
                 {%- if col.relative_time is defined and col.relative_time.parameters is defined -%}
                     {%- set other = '`' + col.relative_time.parameters[1] + '`' -%}
@@ -124,14 +124,13 @@ macroString: |-
   {%- macro get_hash(hash_name, algo='SHA1', delimiter='||') -%}
 
       {%- set cols = namespace(items=[]) -%}
-      {%- set algo_upper = algo | upper -%}
+      {%- set algo_upper = algo | upper | replace('-', '') -%}
 
       {# Collect columns participating in this hash #}
       {%- for col in sources[0].columns -%}
 
           {%- if col.inHash is defined -%}
               {%- for p in col.inHash -%}
-                  {%- set parts = p.parameters[0] -%}
                   {%- set position = p.parameters[1] | int -%}
                   {%- set hash = p.parameters[0] -%}
 
@@ -149,20 +148,30 @@ macroString: |-
           NULL
       {%- else -%}
           {%- set sorted_cols = cols.items | sort(attribute='position') -%}
-          {# Define algo wrappers #}
-          {%- set algo_start = algo_upper + '(' -%}
-          {%- set algo_end = ')' -%}
+          {%- set concatExpr -%}
+              {%- for c in sorted_cols -%}
+                  IFNULL(CAST({{ c.column }} AS STRING), 'null')
+                  {%- if not loop.last -%}
+                      || {%- if delimiter != '' -%} '{{ delimiter }}' || {%- endif -%}
+                  {%- endif -%}
+              {%- endfor -%}
+          {%- endset -%}
 
-          TO_HEX(
-              {{ algo_start }}
-                  {%- for c in sorted_cols -%}
-                      IFNULL(CAST({{ c.column }} AS STRING), 'null')
-                      {%- if not loop.last -%}
-                          || {%- if delimiter != '' -%} '{{ delimiter }}' || {%- endif -%}
-                      {%- endif -%}
-                  {%- endfor -%}
-              {{ algo_end }}
-          )
+          {%- if algo_upper == 'SHA1' -%}
+              SHA1({{ concatExpr }})
+          {%- elif algo_upper == 'SHA224' -%}
+              SHA2({{ concatExpr }}, 224)
+          {%- elif algo_upper == 'SHA256' -%}
+              SHA2({{ concatExpr }}, 256)
+          {%- elif algo_upper == 'SHA384' -%}
+              SHA2({{ concatExpr }}, 384)
+          {%- elif algo_upper == 'SHA512' -%}
+              SHA2({{ concatExpr }}, 512)
+          {%- elif algo_upper == 'MD5' -%}
+              MD5({{ concatExpr }})
+          {%- else -%}
+              SHA1({{ concatExpr }})
+          {%- endif -%}
       {%- endif -%}
   {%- endmacro -%}
 

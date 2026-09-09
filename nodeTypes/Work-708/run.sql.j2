@@ -32,15 +32,15 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 
     {# == Set insert keyword based on writeMode == #}
     {%- if writeMode | lower == 'append' %}
-        {%- set insertKeyword = 'INSERT INTO' %}
+        {%- set insertKeyword = 'INTO' %}
     {%- else %}
-        {%- set insertKeyword = 'INSERT OVERWRITE' %}
+        {%- set insertKeyword = 'OVERWRITE' %}
     {%- endif %}
 
 
 	{# == Insert data from sources into Work table  == #}
     {{ stage('Load ' + node.materializationType + ' using Insert') }}
-    {{ insertKeyword }} {{ ref_no_link(node.location.name, node.name) }}
+    INSERT {{ insertKeyword }} {{ ref_no_link(node.location.name, node.name) }}
     (
         {%- for col in sources[0].columns %}
             `{{ col.name }}`
