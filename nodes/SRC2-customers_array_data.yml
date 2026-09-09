@@ -1,0 +1,67 @@
+fileVersion: 1
+id: 2a170e2d-8341-4868-9e3f-eefb8c61bf63
+name: customers_array_data
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC2
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 1cb7ff0b-24ca-4eb8-a6be-0e1d3c18006b
+          stepCounter: 2a170e2d-8341-4868-9e3f-eefb8c61bf63
+        config: {}
+        dataType: INT
+        defaultValue: ""
+        description: ""
+        name: customer_id
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 328dd9e2-7eb1-4306-862d-ebf8d60a36d3
+          stepCounter: 2a170e2d-8341-4868-9e3f-eefb8c61bf63
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: customer_name
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: efbc8708-4494-4aea-9cde-571fb43c8d00
+          stepCounter: 2a170e2d-8341-4868-9e3f-eefb8c61bf63
+        config: {}
+        dataType: ARRAY
+        defaultValue: ""
+        description: ""
+        name: products
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: customers_array_data
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node
