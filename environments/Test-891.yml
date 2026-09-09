@@ -1,5 +1,8 @@
 fileVersion: 1
 id: "891"
-mappingDefinitions: {}
+mappingDefinitions:
+  SRC2:
+    database: ""
+    schema: ""
 name: Test
 type: Environment

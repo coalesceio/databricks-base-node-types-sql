@@ -1,0 +1,67 @@
+fileVersion: 1
+id: 51e7c5bc-99f2-430f-b59b-6b94de8045f3
+name: sales
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC2
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 593d41a9-1625-45c5-bbec-b62fd4ad5072
+          stepCounter: 51e7c5bc-99f2-430f-b59b-6b94de8045f3
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: region
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 7b8554b8-0e7c-4d10-adcc-c0e94bffb536
+          stepCounter: 51e7c5bc-99f2-430f-b59b-6b94de8045f3
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: year
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 01b47ca9-1965-4f20-ac2d-884307ad5847
+          stepCounter: 51e7c5bc-99f2-430f-b59b-6b94de8045f3
+        config: {}
+        dataType: INT
+        defaultValue: ""
+        description: ""
+        name: amount
+        nullable: false
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: sales
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node
