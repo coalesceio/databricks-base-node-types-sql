@@ -7,7 +7,7 @@
 SELECT
      `n_nationkey` AS `n_nationkey` @description("<text-mod>")  @defaultValue("10"),
      `n_name` AS `n_name`  @not_null @empty @notNull,
-     `n_regionkey` AS `n_regionkey` @description("<text>"),
+     `n_regionkey` AS `n_regionkey_1` @description("<text>"),
      `n_comment` AS `n_comment` @defaultValue("'NA'"),
      `timestamp_col` AS `timestamp_col`
 FROM {{ ref('SRC2', 'nation') }} `nation`

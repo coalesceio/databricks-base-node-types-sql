@@ -8,7 +8,7 @@
 SELECT
      `n_nationkey` AS `n_nationkey` @description("<text-nmod>"),
      `n_name` AS `n_name` @not_null @empty,
-     `n_regionkey` AS `n_regionkey`,
+     `n_regionkey` AS `n_regionkey_1`,
      `n_comment` AS `n_comment`,
      `timestamp_col` AS `timestamp_col`
 FROM {{ ref('SRC2', 'nation') }} `nation`
