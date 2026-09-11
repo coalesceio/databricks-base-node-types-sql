@@ -5,10 +5,10 @@
 @tests("SELECT 1")
 @postSQL("SELECT 1")
 SELECT
-     `n_nationkey` AS `n_nationkey` @description("<text>") @notNull @defaultValue("0"),
-     `n_name` AS `n_name` @defaultValue("'NA'") @not_null @empty,
-     `n_regionkey` AS `n_regionkey`,
-     `n_comment` AS `n_comment`,
+     `n_nationkey` AS `n_nationkey` @description("<text-mod>")  @defaultValue("10"),
+     `n_name` AS `n_name`  @not_null @empty @notNull,
+     `n_regionkey` AS `n_regionkey` @description("<text>"),
+     `n_comment` AS `n_comment` @defaultValue("'NA'"),
      `timestamp_col` AS `timestamp_col`
 FROM {{ ref('SRC2', 'nation') }} `nation`
 where n_nationkey = {{ parameters.nation }}
