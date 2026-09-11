@@ -1,0 +1,50 @@
+fileVersion: 1
+id: 9d15e5d8-3ab8-443c-b75d-539f12182d7b
+name: sample_data
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC2
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 2fb8df63-ccf5-4614-a134-aaa481ced799
+          stepCounter: 9d15e5d8-3ab8-443c-b75d-539f12182d7b
+        config: {}
+        dataType: INT
+        defaultValue: ""
+        description: ""
+        name: id
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 568b53cb-ea7c-44ed-bc4b-82e980d47da7
+          stepCounter: 9d15e5d8-3ab8-443c-b75d-539f12182d7b
+        config: {}
+        dataType: INT
+        defaultValue: ""
+        description: ""
+        name: num
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: sample_data
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node

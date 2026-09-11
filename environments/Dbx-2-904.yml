@@ -1,8 +1,8 @@
 fileVersion: 1
-id: "894"
+id: "904"
 mappingDefinitions:
   SRC2:
     database: ""
     schema: ""
-name: "[Databricks - SQL Node]"
+name: Dbx-2
 type: Environment

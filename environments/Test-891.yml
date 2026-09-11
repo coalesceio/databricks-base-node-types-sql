@@ -4,6 +4,9 @@ mappingDefinitions:
   SRC:
     database: coalesce
     schema: sample_data
+  SRC2:
+    database: ""
+    schema: ""
   TARGET:
     database: coalesce
     schema: target_dev

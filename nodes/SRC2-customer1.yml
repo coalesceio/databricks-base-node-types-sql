@@ -1,0 +1,152 @@
+fileVersion: 1
+id: 0dda9921-505f-4bee-b959-c4aaaafb7361
+name: customer1
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC2
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: e753a12f-9e26-45c8-be24-febbadb734d2
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: LONG
+        defaultValue: ""
+        description: ""
+        name: c_custkey
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: d3a2befc-919d-425f-a104-b8b9b9822cd7
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: c_name
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: df391c48-f72f-4a47-b89f-a567ca3822b4
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: c_address
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: d9d87a53-be24-443f-bc6b-c3883c76dbba
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: LONG
+        defaultValue: ""
+        description: ""
+        name: c_nationkey
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 436885b9-887f-4034-8e19-b4a4a932fe16
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: c_phone
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 374ce87a-4b08-4c33-aba0-1a88177e0109
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: DECIMAL
+        defaultValue: ""
+        description: ""
+        name: c_acctbal
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 8013ff47-4336-44e4-ab51-5411b2b48c33
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: c_mktsegment
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 1cba7153-2afa-4b7d-a1eb-85fe2cdab24b
+          stepCounter: 0dda9921-505f-4bee-b959-c4aaaafb7361
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: c_comment
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: customer1
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node
