@@ -1,11 +1,11 @@
 fileVersion: 1
-id: c94c2f62-5411-44b0-a2c6-9c226b830cf4
+id: f04d8a6b-c40b-436f-b2ac-a28270c94c87
 name: nation
 operation:
   database: ""
   deployEnabled: true
   description: ""
-  locationName: SRC
+  locationName: SRC2
   metadata:
     columns:
       - acceptedValues:
@@ -13,8 +13,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 149dc081-5307-4ae2-ae5b-61f8f506214e
-          stepCounter: c94c2f62-5411-44b0-a2c6-9c226b830cf4
+          columnCounter: d2e899e0-03b7-4b6b-aa71-b41f24eac6cb
+          stepCounter: f04d8a6b-c40b-436f-b2ac-a28270c94c87
         config: {}
         dataType: LONG
         defaultValue: ""
@@ -30,8 +30,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 7130d455-630f-4b28-a80b-56dc722d92c9
-          stepCounter: c94c2f62-5411-44b0-a2c6-9c226b830cf4
+          columnCounter: 80c590b0-f66f-46af-9f71-24759e25fce3
+          stepCounter: f04d8a6b-c40b-436f-b2ac-a28270c94c87
         config: {}
         dataType: STRING
         defaultValue: ""
@@ -47,8 +47,8 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: b997fd14-167b-41af-8312-33ed39c9184c
-          stepCounter: c94c2f62-5411-44b0-a2c6-9c226b830cf4
+          columnCounter: a0d85ee9-78e3-4266-82be-660d4d7d87d9
+          stepCounter: f04d8a6b-c40b-436f-b2ac-a28270c94c87
         config: {}
         dataType: LONG
         defaultValue: ""
@@ -64,30 +64,13 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 7be04b6f-1257-4931-8323-1e92fc6d6921
-          stepCounter: c94c2f62-5411-44b0-a2c6-9c226b830cf4
+          columnCounter: ce33de5e-aa2e-437f-bfb8-141af09c926d
+          stepCounter: f04d8a6b-c40b-436f-b2ac-a28270c94c87
         config: {}
         dataType: STRING
         defaultValue: ""
         description: ""
         name: n_comment
-        nullable: true
-        sourceColumnReferences:
-          - columnReferences: []
-            transform: ""
-        transform: ""
-      - acceptedValues:
-          strictMatch: true
-          values: []
-        appliedColumnTests: {}
-        columnReference:
-          columnCounter: 6662d8b7-a7a6-4cd0-8a8c-5508036e739c
-          stepCounter: c94c2f62-5411-44b0-a2c6-9c226b830cf4
-        config: {}
-        dataType: TIMESTAMP
-        defaultValue: ""
-        description: ""
-        name: timestamp_col
         nullable: true
         sourceColumnReferences:
           - columnReferences: []
