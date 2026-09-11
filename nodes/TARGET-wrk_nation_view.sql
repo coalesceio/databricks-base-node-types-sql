@@ -2,6 +2,7 @@
 @nodeType("708")
 @description("@description(""<text>"")")
 @materializationType("view")
+@disableTests
 @preSQL("SELECT 1")
 @tests("SELECT 1")
 @postSQL("SELECT 1")

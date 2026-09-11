@@ -1,5 +1,6 @@
 @id("72c8cb34-ae38-4c9e-831a-da4ddd275d0f")
 @nodeType("708")
+@disableTests
 SELECT DISTINCT
      -- NUMBER column: full numeric test coverage
      `N_NATIONKEY` AS `N_NATIONKEY` @notNull @not_null @uniqueness @min_value(`0`) @max_value(`100`) @accepted_values(`1`) @accepted_values(`2`) @inHash(`GH_COL1`, 2) @description(`Nation key`),

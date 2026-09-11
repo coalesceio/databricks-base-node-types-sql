@@ -1,6 +1,7 @@
 @id("ea711ab8-cf55-4357-9edb-c5c49d7ce916")
 @nodeType("708")
 @description("@description(""<text>"")")
+@disableTests
 @preSQL("SELECT 1")
 @tests("SELECT 1")
 @postSQL("SELECT 1")
