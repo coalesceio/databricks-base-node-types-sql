@@ -1,5 +1,11 @@
 fileVersion: 1
 id: "894"
-mappingDefinitions: {}
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_sql_tv
 name: "[Databricks - SQL Node]"
 type: Environment
