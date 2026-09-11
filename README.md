@@ -191,6 +191,12 @@ Converting an existing V1 (`.yml`) node to a V2 (`.sql`) node, or vice versa, is
 * **SELECT * Not Supported**:
 Using SELECT * in the final **SELECT** is not supported as of now. Instead, manually list out the required columns.
 
+* **Schema Evolution with DEFAULT Values Not Supported**:
+  Adding a new column with a DEFAULT value via schema change is not supported in Databricks.
+
+* **Altering DEFAULT Value on Redeploy Not Supported**:
+Altering a table to set/update a column's DEFAULT value during redeployment is not currently supported in Coalesce.
+
 ---
 
 ### Usage Examples 
@@ -394,7 +400,7 @@ The following stages are executed:
 | **Swap Cloned Table** | Upon successful completion of all updates, the clone replaces the main table ensuring that no data is lost |
 | **Delete Table** | Drops the internal table |
 
-> **Note:** Renaming a column results in the existing column being dropped and a new column being created. This operation may lead to data loss and should be performed with caution.
+> **Note:** Renaming a column results in the existing column being dropped and a new column being created. This operation may lead to data loss and should be performed with caution. Additionally, adding a new column with a DEFAULT value via schema change is not supported in Databricks, and altering a table to set/update a column's DEFAULT value during redeployment is not currently supported in Coalesce.
 
 #### Recreating the Work Tables
 
