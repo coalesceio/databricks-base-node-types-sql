@@ -1,0 +1,14 @@
+fileVersion: 1
+id: "899"
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
+  SRC2:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_sql_tv
+name: "[Databricks - SQL Node - Tanvi]"
+type: Environment
