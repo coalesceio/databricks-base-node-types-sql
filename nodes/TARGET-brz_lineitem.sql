@@ -1,7 +1,7 @@
 @id("0f66c813-255f-437e-9e69-e305a9e3bdfc")
 @nodeType("708")
 SELECT
-     `l_orderkey` AS `order_key` @not_null @description("Raw order key this line item belongs to."),
+     CAST(`l_orderkey` AS BIGINT) AS `order_key` @not_null @description("Raw order key this line item belongs to."),
      `l_linenumber` AS `line_number` @not_null @description("Raw line number within the order."),
      `l_partkey` AS `part_key` @description("Raw part key, unmodified from source."),
      `l_suppkey` AS `supplier_key` @description("Raw supplier key, unmodified from source."),
