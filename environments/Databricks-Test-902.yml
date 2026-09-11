@@ -1,0 +1,14 @@
+fileVersion: 1
+id: "902"
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
+  SRC2:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_dep
+name: Databricks-Test
+type: Environment
