@@ -1,0 +1,14 @@
+fileVersion: 1
+id: "904"
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
+  SRC2:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_anan
+name: Dbx-2
+type: Environment
