@@ -1,8 +1,14 @@
 fileVersion: 1
 id: "891"
 mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
   SRC2:
-    database: ""
-    schema: ""
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_dep
 name: Test
 type: Environment
