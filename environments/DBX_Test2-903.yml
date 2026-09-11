@@ -9,6 +9,6 @@ mappingDefinitions:
     schema: sample_source
   TARGET:
     database: coalesce
-    schema: target_de
+    schema: target_anan
 name: DBX_Test2
 type: Environment
