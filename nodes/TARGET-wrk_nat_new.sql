@@ -3,6 +3,6 @@
 SELECT
      CAST(`n_nationkey` AS BIGINT) AS `n_nationkey`,
      `n_name` AS `n_name`,
-     `n_regionkey` AS `n_regionkey`,
+     CAST( `n_regionkey` AS INTEGER) AS `n_regionkey`,
      `n_comment` AS `n_comment`
 FROM {{ ref('SRC2', 'nation') }} `nation`
