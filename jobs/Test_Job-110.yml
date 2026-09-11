@@ -1,0 +1,6 @@
+excludeSelector: ""
+fileVersion: 1
+id: "110"
+includeSelector: "{ location: \"SRC2\" name: \"nation\" } OR { location: \"TARGET\" name: \"wrk_nation\" } OR { location: \"TARGET\" name: \"wrk_nation_table\" } OR { location: \"TARGET\" name: \"wrk_nation_view\" }"
+name: Test_Job
+type: Job
