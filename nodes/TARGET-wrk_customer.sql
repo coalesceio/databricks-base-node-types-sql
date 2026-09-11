@@ -4,7 +4,7 @@ SELECT
      CAST(`c_custkey` AS BIGINT) AS `c_custkey`,
      `c_name` AS `c_name`,
      `c_address` AS `c_address`,
-     `n_nationkey` AS `c_nationkey`,
+     `c_nationkey` AS `c_nationkey`,
      `c_phone` AS `c_phone`,
      `c_acctbal` AS `c_acctbal`,
      `c_mktsegment` AS `c_mktsegment`,
