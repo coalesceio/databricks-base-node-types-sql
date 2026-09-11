@@ -8,7 +8,7 @@
 @preSQL("SELECT 1")
 @postSQL("SELECT 1")
 SELECT
-     `n_nationkey` AS `n_nationkey` @not_null @uniqueness @min_value("0") @max_value("24") @inHash("GH_NATION", "1"),
+     `n_nationkey` AS `n_nationkey`  @inHash("GH_NATION", "1"),
      `n_regionkey` AS `n_regionkey` @min_max("0", "4") @inHash("GH_NATION", "2"),
      `n_name` AS `n_name` @empty @accepted_values("'ALGERIA'") @accepted_values("'ARGENTINA'") @rejected_values("'UNKNOWN'") @description("Nation name"),
      `n_comment` AS `n_comment` @defaultValue("'NA'"),

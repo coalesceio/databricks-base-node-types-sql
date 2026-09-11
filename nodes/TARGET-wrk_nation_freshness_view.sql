@@ -1,5 +1,6 @@
 @id("8284f0e2-935f-4ce0-b332-cdd38670f78b")
 @nodeType("708")
+@materializationType("view")
 SELECT
      `n_nationkey` AS `n_nationkey`,
      `timestamp_col` AS `ts_freshness_default` @freshness("1"),

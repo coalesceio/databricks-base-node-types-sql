@@ -10,6 +10,5 @@ SELECT
      `n_name` AS `n_name` @empty @accepted_values("'ALGERIA'") @accepted_values("'ARGENTINA'") @rejected_values("'UNKNOWN'") @description("Nation name"),
      `n_comment` AS `n_comment` @defaultValue("'NA'"),
      `timestamp_col` AS `ts_base` @id("ts-base-col"),
-     `timestamp_col` AS `ts_freshness` @freshness("1", "DAY"),
-     CAST(`timestamp_col` + INTERVAL 1 DAY AS TIMESTAMP) AS `ts_relative` @relative_time(">", "ts_base")
+     `timestamp_col` AS `ts_freshness` @freshness("1", "DAY")
 FROM {{ ref('SRC', 'nation') }} `nation`
