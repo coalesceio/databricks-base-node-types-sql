@@ -9,7 +9,7 @@
 @preSQL("DELETE FROM {{ this }} WHERE L_M_1 < CURRENT_DATE() - INTERVAL 90 DAY")
 @postSQL("INSERT INTO `coalesce`.`target_dev`.`load_log` (`table_name`, `load_ts`) VALUES ('WRK_NATION', CURRENT_TIMESTAMP())")
 SELECT
-     `N_NATIONKEY` AS `N_NATIONKEY` @not_null @uniqueness @min_value("0") @max_value("100")  @accepted_values("1") @inHash("GH_COL1", 2),
+     CAST(`N_NATIONKEY` AS INTEGER) AS `N_NATIONKEY` @not_null @uniqueness @min_value("0") @max_value("100")  @accepted_values("1") @inHash("GH_COL1", 2),
      `N_NAME` AS `N_NAME` @not_null @empty @accepted_values("'ALGERIA'") @accepted_values("'ARGENTINA'") @inHash("GH_COL1", 1),
      `N_REGIONKEY` AS `N_REGIONKEY` @min_max("0", "4") @not_null @defaultValue("20"),
      `N_COMMENT` AS `N_COMMENT` @rejected_values("'NA'"),
