@@ -4,6 +4,6 @@ SELECT
      `n_nationkey` AS `n_nationkey`,
      `n_name` AS `n_name`,
      `n_regionkey` AS `n_regionkey`,
-     `n_comment` AS `n_comment`,
+     `n_comment` AS `n_comment_new1`,
      `timestamp_col` AS `timestamp_col`
 FROM {{ ref('SRC', 'nation') }} `nation`
