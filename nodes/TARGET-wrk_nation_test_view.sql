@@ -1,7 +1,7 @@
-@id("c4dfa9af-e227-482d-8855-668e95aafd96")
+@id("312e4fc6-0e82-456b-b5e9-d7c5961ca4e5")
 @nodeType("708")
-@materializationType("table")
-@writeMode("truncateInsert")
+@materializationType("view")
+@writeMode("append")
 @tests("SELECT 1 FROM {{ this }} GROUP BY N_NATIONKEY HAVING COUNT(*) > 1")
 @tests("SELECT 1 FROM {{ this }} WHERE N_REGIONKEY IS NULL")
 @description("Table description")
@@ -9,10 +9,10 @@
 @preSQL("DELETE FROM {{ this }} WHERE L_M_1 < CURRENT_DATE() - INTERVAL 90 DAY")
 @postSQL("INSERT INTO `coalesce`.`target_dev`.`load_log` (`table_name`, `load_ts`) VALUES ('WRK_NATION', CURRENT_TIMESTAMP())")
 SELECT
-     `N_NATIONKEY` AS `N_NATIONKEY` @notNull @uniqueness @min_value("0") @max_value("100")  @accepted_values("1") @inHash("GH_COL1", 2),
+     `N_NATIONKEY` AS `N_NATIONKEY` @not_null @uniqueness @min_value("0") @max_value("100")  @accepted_values("1") @inHash("GH_COL1", 2),
      `N_NAME` AS `N_NAME` @not_null @empty @accepted_values("'ALGERIA'") @accepted_values("'ARGENTINA'") @inHash("GH_COL1", 1),
      `N_REGIONKEY` AS `N_REGIONKEY` @min_max("0", "4") @not_null @defaultValue("20"),
-     `N_COMMENT` AS `N_COMMENT` @description("'NA'") @rejected_values("'NA'"),
+     `N_COMMENT` AS `N_COMMENT` @rejected_values("'NA'"),
      `timestamp_col` AS L_M_1 @freshness(7, "DAY") @relative_time("<", "L_M_2") @description("timestamp column"),
      `timestamp_col` AS L_M_2,
      CAST({{ get_hash('GH_COL1') }} AS STRING) AS `GH_COL1` @description("Hash Column")
