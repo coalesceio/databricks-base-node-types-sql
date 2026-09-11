@@ -1,0 +1,101 @@
+fileVersion: 1
+id: 980424cc-e744-4966-9574-4d069c75c8f7
+name: nation
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: a17d3260-5f5d-49b0-914b-93076dc5c9e9
+          stepCounter: 980424cc-e744-4966-9574-4d069c75c8f7
+        config: {}
+        dataType: LONG
+        defaultValue: ""
+        description: ""
+        name: n_nationkey
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 1e1c1574-522b-477e-9884-77743cbee194
+          stepCounter: 980424cc-e744-4966-9574-4d069c75c8f7
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: n_name
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 6baddf26-e5d2-479f-af7d-93cf57effe05
+          stepCounter: 980424cc-e744-4966-9574-4d069c75c8f7
+        config: {}
+        dataType: LONG
+        defaultValue: ""
+        description: ""
+        name: n_regionkey
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 81769a64-2aa3-4d24-bc73-b765559d88fa
+          stepCounter: 980424cc-e744-4966-9574-4d069c75c8f7
+        config: {}
+        dataType: STRING
+        defaultValue: ""
+        description: ""
+        name: n_comment
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: beae31d1-e5e4-404a-a01e-306b715fafa8
+          stepCounter: 980424cc-e744-4966-9574-4d069c75c8f7
+        config: {}
+        dataType: TIMESTAMP
+        defaultValue: ""
+        description: ""
+        name: timestamp_col
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: nation
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node
