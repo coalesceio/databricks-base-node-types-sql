@@ -1,6 +1,7 @@
-@id("93c1b157-06f0-43ed-8f4f-319ca7b6ce6d")
+@id("6ae3b087-b6fb-4435-a2aa-2690ffcc004d")
 @nodeType("708")
 @description("@description(""<text>"")")
+@materializationType("view")
 @preSQL("SELECT 1")
 @tests("SELECT 1")
 @postSQL("SELECT 1")
