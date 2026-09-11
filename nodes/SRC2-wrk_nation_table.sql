@@ -13,4 +13,4 @@ SELECT
      `timestamp_col` AS `timestamp_col`,
      `n_comment` AS `n_comment_MOD` @defaultValue("'NA'")
 FROM {{ ref('SRC2', 'nation') }} `nation`
-where n_nationkey = {{ parameters.nation }}
+where n_nationkey = 3
