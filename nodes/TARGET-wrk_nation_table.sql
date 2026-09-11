@@ -10,6 +10,6 @@ SELECT
      `n_regionkey` AS `n_regionkey_1` @description("<text>"),
      `n_comment` AS `n_comment` @defaultValue("'NA'"),
      `timestamp_col` AS `timestamp_col`,
-     `n_comment` AS `n_comment_1` @defaultValue("'NA'")  @description("<text>")
+     `n_comment` AS `n_comment_2` @defaultValue("'NA'") @description("<text>")
 FROM {{ ref('SRC2', 'nation') }} `nation`
 where n_nationkey = {{ parameters.nation }}
