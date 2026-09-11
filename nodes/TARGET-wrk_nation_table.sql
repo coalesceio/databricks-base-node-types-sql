@@ -6,7 +6,7 @@
 @tests("SELECT 1")
 @postSQL("SELECT 1")
 SELECT ALL
-     `n_nationkey` AS `n_nationkey` @description("<text-mod>")  @defaultValue("10"),
+     CAST(`n_nationkey` AS INTEGER) AS `n_nationkey` @description("<text-mod>")  @defaultValue("10"),
      `n_name` AS `n_name`  @not_null @empty @notNull,
      `n_regionkey` AS `n_regionkey_1` @description("<text>"),
      `n_comment` AS `n_comment` @defaultValue("'NA'"),
