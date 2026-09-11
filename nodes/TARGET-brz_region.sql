@@ -5,4 +5,4 @@ SELECT
      `r_name` AS `region_name` @not_null @description("Raw region name, unmodified from source."),
      `r_comment` AS `region_comment` @description("Raw comment text, unmodified from source."),
      CURRENT_TIMESTAMP() AS `_bronze_loaded_at` @description("Timestamp this row was ingested into the Bronze layer.")
-FROM {{ ref('SRC', 'region') }} `region`
+FROM {{ ref('SRC2', 'region') }} `region`

@@ -15,6 +15,6 @@ SELECT
      `l_discount` AS `l_discount`,
      `l_returnflag` AS `l_returnflag`
 FROM {{ ref('TARGET', 'wrk_nation_region') }} `nation_region`
-JOIN {{ ref('SRC', 'customer') }} `customer` ON `customer`.`c_nationkey` = `nation_region`.`n_nationkey`
-JOIN {{ ref('SRC', 'orders') }} `orders` ON `orders`.`o_custkey` = `customer`.`c_custkey`
-JOIN {{ ref('SRC', 'lineitem') }} `lineitem` ON `lineitem`.`l_orderkey` = `orders`.`o_orderkey`
+JOIN {{ ref('SRC2', 'customer') }} `customer` ON `customer`.`c_nationkey` = `nation_region`.`n_nationkey`
+JOIN {{ ref('SRC2', 'orders') }} `orders` ON `orders`.`o_custkey` = `customer`.`c_custkey`
+JOIN {{ ref('SRC2', 'lineitem') }} `lineitem` ON `lineitem`.`l_orderkey` = `orders`.`o_orderkey`

@@ -10,4 +10,4 @@ SELECT
      `c_mktsegment` AS `market_segment` @description("Raw market segment, unmodified from source."),
      `c_comment` AS `customer_comment` @description("Raw comment text, unmodified from source."),
      CURRENT_TIMESTAMP() AS `_bronze_loaded_at` @description("Timestamp this row was ingested into the Bronze layer.")
-FROM {{ ref('SRC', 'customer') }} `customer`
+FROM {{ ref('SRC2', 'customer') }} `customer`

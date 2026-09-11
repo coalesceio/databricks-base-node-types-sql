@@ -7,4 +7,4 @@ SELECT
      `r_name` AS `r_name`,
      `n_comment` AS `n_comment`
 FROM {{ ref('SRC', 'nation') }} `nation`
-JOIN {{ ref('SRC', 'region') }} `region` ON `nation`.`n_regionkey` = `region`.`r_regionkey`
+JOIN {{ ref('SRC2', 'region') }} `region` ON `nation`.`n_regionkey` = `region`.`r_regionkey`

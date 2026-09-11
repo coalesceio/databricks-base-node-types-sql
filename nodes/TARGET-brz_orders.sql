@@ -11,4 +11,4 @@ SELECT
      `o_shippriority` AS `ship_priority` @description("Raw shipping priority, unmodified from source."),
      `o_comment` AS `order_comment` @description("Raw comment text, unmodified from source."),
      CURRENT_TIMESTAMP() AS `_bronze_loaded_at` @description("Timestamp this row was ingested into the Bronze layer.")
-FROM {{ ref('SRC', 'orders') }} `orders`
+FROM {{ ref('SRC2', 'orders') }} `orders`

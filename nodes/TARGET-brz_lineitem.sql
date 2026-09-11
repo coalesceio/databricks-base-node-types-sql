@@ -18,4 +18,4 @@ SELECT
      `l_shipmode` AS `ship_mode` @description("Raw shipping mode, unmodified from source."),
      `l_comment` AS `line_comment` @description("Raw comment text, unmodified from source."),
      CURRENT_TIMESTAMP() AS `_bronze_loaded_at` @description("Timestamp this row was ingested into the Bronze layer.")
-FROM {{ ref('SRC', 'lineitem') }} `lineitem`
+FROM {{ ref('SRC2', 'lineitem') }} `lineitem`
