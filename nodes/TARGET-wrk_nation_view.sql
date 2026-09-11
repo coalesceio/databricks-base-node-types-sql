@@ -6,7 +6,7 @@
 @tests("SELECT 1")
 @postSQL("SELECT 1")
 SELECT
-     `n_nationkey` AS `n_nationkey` @description("<text>"),
+     `n_nationkey` AS `n_nationkey` @description("<text-nmod>"),
      `n_name` AS `n_name` @not_null @empty,
      `n_regionkey` AS `n_regionkey`,
      `n_comment` AS `n_comment`,
