@@ -1,0 +1,14 @@
+fileVersion: 1
+id: "903"
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
+  SRC2:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_de
+name: DBX_Test2
+type: Environment
