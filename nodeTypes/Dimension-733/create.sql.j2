@@ -5,157 +5,103 @@ Unauthorized reproduction, distribution, or disclosure of this material is stric
 Coalesce permits you to copy and modify this script for the purposes of using with Coalesce but does not permit copying or modification for any other purpose.
 #}
 {# == Node Type Name           : Dimension  == #}
-{# == Node Type Description    : This node creates dimension table or view with advanced deployment strategy  == #}
+{# == Node Type Description    : This node creates dimension table or view  == #}
 {#---------------------------------------------------------------------------------------------#}
 
-{#- nsNodeVariables (object paths, materialization types, metaDataChanged) is created and initialized in the shared macros #}
+{%- set target = ref_no_link(node.location.name, node.name) %}
 
-{#- Desired/current materialization type, normalized ("Table " = "table").
-    Empty string when the state is absent (first deploy has no currentState; delete has no desiredState). #}
-{%- set desiredMatType = nsNodeVariables.desiredMatType %}
-{%- set currentMatType = nsNodeVariables.currentMatType %}
+{%- if node.materializationType == 'table' %}
 
-{%- if desiredState %}
+    {%- set ns = namespace(hasDefault=false, partitionCols=[], clusterItems=[], clusterCols=[], pkItems=[], pkCols=[]) %}
 
-    {# Validate: the materialization type must be table or view #}
-    {{ validate_materialization_type() }}
-
-    {# Validate: the same tag key applied twice to the node, or a @tag on a column, is not allowed #}
-    {{ tag_check_duplicates() }}
-
-    {# Validate: @tableExpiration must be a date / datetime (a number of days stops the create; an expression only warns) #}
-    {{ validate_table_expiration() }}
-
-    {%- if desiredMatType == 'view' %}
-
-        {# Drop the current object if it was another type, or the view was renamed/moved #}
-        {{ object_drop_sql() }}
-
-        {# Did the view definition change (columns, column descriptions, SELECT)? Render it without OPTIONS for both states and compare #}
-        {%- set viewDefinitionChanged = currentState is not defined
-                or (currentState != desiredState
-                    and view_definition_sql(currentState, false) != view_definition_sql(desiredState, false)) %}
-
-        {# Which view OPTIONS changed (expiration, tags, description)? Only those go into the ALTER #}
-        {%- set viewOptionsAlter = view_options_alter_sql(currentState, desiredState) | trim
-                if (currentState is defined and currentState != desiredState) else '' %}
-
-        {# CreateSQL for View #}
-        {%- if currentState is not defined
-                or currentMatType != desiredMatType
-                or nsNodeVariables.curObjectNameFullPath != nsNodeVariables.desObjectNameFullPath
-                or viewDefinitionChanged %}
-            {{ stage('Create Dimension View', true, "sql", "create") }}
-            CREATE OR REPLACE VIEW {{ nsNodeVariables.desObjectNameFullPath }}
-            {{ view_definition_sql(desiredState) }}
-
-        {%- elif viewOptionsAlter | length > 0 %}
-
-            {# Definition unchanged, options changed: one ALTER with only the changed options (a removed one is reset to NULL, tags to []) #}
-            {{ stage('Edit View Options') }}
-            ALTER VIEW {{ nsNodeVariables.desObjectNameFullPath }}
-            SET {{ viewOptionsAlter }}
-
-        {%- elif currentState != desiredState %}
-
-            {# Definition and options unchanged (e.g. tests or run settings): record a metadata-only change #}
-            {{ alter_metadata_sql() }}
-
-        {%- endif %}
-
-    {%- elif desiredMatType == 'table' %}
-
-        {# Validate the Dimension's annotations (hard fail: CREATE does not fail a test stage on row count) #}
-        {{ validate_dimension_requirements(true) }}
-        {# Validate: one partition (node or column @partitionBy), partition expiration only on a time partition, at most 4 plain cluster columns #}
-        {{ validate_partition_cluster() }}
-
-        {# Drop the current object if it was another type #}
-        {{ object_drop_sql() }}
-
-        {%- set nsConfigVariables = namespace(options = "", partitionBy = "", clusterBy = "", primaryKey = "", createTable = false) %}
-
-        {# Initialise the variables necessary for create of table #}
-        {%- set nsConfigVariables.partitionBy = get_partition_by_sql(config, columns) | trim %}
-        {%- set nsConfigVariables.clusterBy = get_clusterby_sql(columns) | trim %}
-        {%- set nsConfigVariables.primaryKey = get_primary_key_sql(columns) | trim %}
-        {%- set nsConfigVariables.options = get_object_options_sql(config, node.description, false, columns) | trim %}
-
-        {# Databricks cannot alter these on an existing table: a dataset move, or a partition / cluster change recreates it #}
-        {%- if currentState is defined and currentMatType == desiredMatType
-                and (nsNodeVariables.currentProjectDataset != nsNodeVariables.desiredProjectDataset
-                or (get_partition_by_sql(currentState.config, currentState.columns) | trim | lower) != (nsConfigVariables.partitionBy | lower)
-                or (get_clusterby_sql(currentState.columns) | trim | lower) != (nsConfigVariables.clusterBy | lower)) %}
-            {%- set nsConfigVariables.createTable = true %}
-        {%- endif %}
-
-        {%- if currentState is not defined or currentMatType != desiredMatType or nsConfigVariables.createTable %}
-
-            {# Drop current table before recreating it #}
-            {%- if nsConfigVariables.createTable %}
-                {{ stage('Drop Current ' + currentMatType + ' - ' + currentState.node.name, true, "sql", "drop") }}
-                DROP {{ drop_materialization(currentMatType) }} {{ nsNodeVariables.curObjectNameFullPath }}
-                {%- set nsNodeVariables.metaDataChanged = true %}
+    {# == Partition columns: node-level @partitionBy (comma separated column list) or column-level @partitionBy == #}
+    {%- if config.partitionBy is defined and config.partitionBy.parameters is defined and config.partitionBy.parameters | length > 0 %}
+        {%- for p in (config.partitionBy.parameters[0] | string).split(',') %}
+            {%- if p | trim | length > 0 %}
+                {%- set ns.partitionCols = ns.partitionCols + [p | trim] %}
             {%- endif %}
-
-            {# CreateSQL for Table #}
-            {{ stage('Create Dimension Table', true, "sql", "create") }}
-            CREATE OR REPLACE TABLE {{ nsNodeVariables.desObjectNameFullPath }}
-            (
-                {%- for col in columns %}
-                    `{{ col.name }}` {{ col.dataType }}
-                    {%- if col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- endif %}
-                    {%- if col.nullable == false %} NOT NULL {%- endif %}
-                    {%- if col.description | trim | length > 0 %} OPTIONS(description = '{{ col.description | escape }}') {%- endif %}
-                    {%- if not loop.last or nsConfigVariables.primaryKey | length > 0 -%}, {%- endif %}
-                {%- endfor %}
-                {%- if nsConfigVariables.primaryKey | length > 0 %}
-                    {{ nsConfigVariables.primaryKey }}
-                {%- endif %}
-            )
-            {{ nsConfigVariables.partitionBy }}
-            {{ nsConfigVariables.clusterBy }}
-            {{ nsConfigVariables.options }}
-
-        {%- elif currentState is defined and currentState != desiredState and currentMatType == desiredMatType %}
-
-            {# NOT NULL cannot be applied to an existing Databricks table: warn only #}
-            {{ alter_column_warnings_sql() }}
-
-            {# Every alter runs on the clone (nsNodeVariables.alterObjectNameFullPath) #}
-            {%- set alterSql %}
-
-                {# Alter Column: data type, nullability, description, default (old column names) #}
-                {{ alter_modify_columns_sql() }}
-
-                {# Add Column (default set after the add; existing rows are not backfilled) #}
-                {{ alter_add_columns_sql() }}
-
-                {# Rename Column (matched by @id) #}
-                {{ alter_rename_columns_sql() }}
-
-                {# Delete Column #}
-                {{ alter_drop_columns_sql() }}
-
-            {%- endset %}
-
-            {# Clone Table -> alters -> Replace Table (clone copied back over the table) #}
-            {{ alter_clone_swap_sql(alterSql) }}
-
-            {# Edit Table Options on the table: changed options, or re-applied after Replace Table (COPY drops the expiration) #}
-            {{ alter_table_options_sql() }}
-
-            {# Delete Clone: last stage, once the table is replaced and its options are set #}
-            {{ alter_delete_clone_sql() }}
-
-            {# Nothing above altered the table: record a metadata-only change #}
-            {{ alter_metadata_sql() }}
-        {%- endif %}
+        {%- endfor %}
     {%- endif %}
 
-{%- elif currentState is defined and desiredState is not defined %}
+    {%- for col in columns %}
+        {%- if col.partitionBy is defined %}
+            {%- set ns.partitionCols = ns.partitionCols + ['`' ~ col.name ~ '`'] %}
+        {%- endif %}
+        {%- if col.clusterKey is defined and col.clusterKey.parameters is defined %}
+            {%- set ns.clusterItems = ns.clusterItems + [{'position': col.clusterKey.parameters[0] | int, 'name': col.name}] %}
+        {%- endif %}
+        {%- if col.primaryKey is defined and col.primaryKey.parameters is defined %}
+            {%- set ns.pkItems = ns.pkItems + [{'position': col.primaryKey.parameters[0] | int, 'name': col.name}] %}
+        {%- endif %}
+    {%- endfor %}
 
-    {# Node deleted: drop the current object #}
-    {{ object_drop_sql() }}
+    {%- for c in ns.clusterItems | sort(attribute='position') %}
+        {%- set ns.clusterCols = ns.clusterCols + ['`' ~ c.name ~ '`'] %}
+    {%- endfor %}
+    {%- for c in ns.pkItems | sort(attribute='position') %}
+        {%- set ns.pkCols = ns.pkCols + [c.name] %}
+    {%- endfor %}
 
+    {# CreateSQL for Table #}
+    {{ stage('Create Dimension Table') }}
+    CREATE OR REPLACE TABLE {{ target }}
+    (
+        {%- for col in columns %}
+            `{{ col.name }}` {{ col.dataType }}
+            {%- if col.isSurrogateKey is defined %} GENERATED BY DEFAULT AS IDENTITY (START WITH 1 INCREMENT BY 1)
+            {%- elif col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- set ns.hasDefault = true %}
+            {%- endif %}
+            {%- if col.nullable == false or col.name in ns.pkCols %} NOT NULL {%- endif %}
+            {%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %}
+            {%- if not loop.last or ns.pkCols | length > 0 -%}, {%- endif %}
+        {%- endfor %}
+        {%- if ns.pkCols | length > 0 %}
+            CONSTRAINT `pk_{{ node.name }}` PRIMARY KEY ({%- for c in ns.pkCols %}`{{ c }}`{%- if not loop.last %}, {% endif %}{%- endfor %})
+        {%- endif %}
+    )
+    {%- if ns.partitionCols | length > 0 %}
+    PARTITIONED BY ({{ ns.partitionCols | join(', ') }})
+    {%- endif %}
+    {%- if ns.clusterCols | length > 0 %}
+    CLUSTER BY ({{ ns.clusterCols | join(', ') }})
+    {%- endif %}
+    {%- if node.description | trim | length > 0 %}
+    COMMENT '{{ node.description | escape }}'
+    {%- endif %}
+    TBLPROPERTIES('delta.columnMapping.mode' = 'name'{%- if ns.hasDefault %}, 'delta.feature.allowColumnDefaults' = 'supported'{%- endif %})
+
+{%- elif node.materializationType == 'view' %}
+
+    {# CreateSQL for View #}
+    {{ stage('Create Dimension View') }}
+    CREATE OR REPLACE VIEW {{ target }}
+    (
+        {%- for col in columns %}
+            `{{ col.name }}`
+            {%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %}
+            {%- if not loop.last -%}, {%- endif %}
+        {%- endfor %}
+    )
+    {%- if node.description | trim | length > 0 %} COMMENT '{{ node.description | escape }}'{% endif %}
+    AS
+    {{ sources[0].cteString }}
+    SELECT {{ sources[0].selectModifier | default('', true) }}
+    {%- for col in sources[0].columns %}
+        {{ get_source_transform(col) }} AS `{{ col.name }}`
+        {%- if not loop.last -%}, {%- endif %}
+    {%- endfor %}
+    {{ sources[0].join }}
+{%- endif %}
+
+{# == Unity Catalog tags (@tag on the node) - applied to tables and views == #}
+{%- set tagNs = namespace(items=[]) %}
+{%- for t in config.tag | default([]) %}
+    {%- if t is mapping and t.parameters is defined and t.parameters | length > 1 %}
+        {%- set tagNs.items = tagNs.items + ["'" ~ (t.parameters[0] | trim) ~ "' = '" ~ (t.parameters[1] | trim) ~ "'"] %}
+    {%- endif %}
+{%- endfor %}
+{%- if tagNs.items | length > 0 %}
+    {{ stage('Set Tags') }}
+    ALTER {{ 'VIEW' if node.materializationType == 'view' else 'TABLE' }} {{ target }}
+    SET TAGS ({{ tagNs.items | join(', ') }})
 {%- endif %}
