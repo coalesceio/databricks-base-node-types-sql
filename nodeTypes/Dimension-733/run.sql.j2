@@ -7,10 +7,10 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {# == Node Type Name           : Dimension  == #}
 {# == Node Type Description    : This node loads data into dimension table using options distinct and multi-source cte if specified == #}
 
-{# == Validate: the materialization type must be table, transient table or view == #}
+{# == Validate: the materialization type must be table or view == #}
 {{ validate_materialization_type() }}
 
-{# == Materialization type from the node, normalised (case and spaces): table / transient table / view == #}
+{# == Materialization type from the node, normalised (case and spaces): table / view == #}
 {%- set materializationType = get_materialization_type(node.materializationType) %}
 
 {# == To run data quality tests before data insertion == #}
@@ -317,7 +317,7 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
                     {%- elif col.isSystemCurrentFlag %}
                     'N'
                     {%- elif col.isSystemEndDate %}
-                    TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 MILLISECOND)
+                    CURRENT_TIMESTAMP() - INTERVAL 1 MILLISECOND
                     {%- else %}
                     `TGT_{{ col.name }}`
                     {%- endif %}
@@ -362,7 +362,7 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 
             {%- if isSimpleUpsert %}
             {# @upsert needs nothing from the target — the outer MERGE's MATCHED/NOT MATCHED already tells insert vs. update, so just pass the source columns through.
-               System columns ride along with the user's own expressions (not hard-coded values), so custom SELECT/CTE logic can set them (e.g. expiring a row for SCD2); only the identity surrogate key is left out. #}
+               System columns ride along with the user's own expressions (not hard-coded values), so custom SELECT/CTE logic can set them (e.g. expiring a row for SCD2); only the surrogate key is left out — Databricks fills it from its IDENTITY. #}
             SELECT {{ source.selectModifier | default('', true) }}
             {%- for col in source.columns if not col.isSurrogateKey %}
                 {{ get_source_transform(col) }} AS `{{ col.name }}`
@@ -537,7 +537,7 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {%- else %}
 	{{ stage('Load Skipped for View') }}
 	-- The node {{node.name}} is materialized as View. Therefore, a Load operation is not supported.
-	SELECT 1 FROM UNNEST([1]) AS INFO_MESSAGE WHERE FALSE
+	SELECT 1 AS INFO_MESSAGE WHERE FALSE
 {%- endif %}
 
 {# == To run data quality tests after data insertion == #}
