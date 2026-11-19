@@ -10,6 +10,8 @@ metadata:
     plural: Works
     tagColor: '#2EB67D'
 
+    deployStrategy: advanced
+
     enableCTESupport: true
 
     annotations:
