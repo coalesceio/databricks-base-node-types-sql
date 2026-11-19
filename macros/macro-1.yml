@@ -2,6 +2,21 @@ fileVersion: 1
 id: "1"
 macroString: |-
   {#===========================================================================
+    SECTION 0: Advanced deploy setup (keep first)
+    Advanced-deploy create templates get desiredState / currentState instead of
+    node / columns / config / sources: point those names at desiredState so the
+    same macros work in create (advanced deploy) and run.
+  ===========================================================================#}
+  {%- if desiredState -%}
+      {%- set columns = desiredState.columns -%}
+      {%- set storageLocations = desiredState.storageLocations -%}
+      {%- set config = desiredState.config -%}
+      {%- set sources = desiredState.sources -%}
+      {%- set node = desiredState.node -%}
+      {%- set parameters = desiredState.parameters -%}
+  {%- endif -%}
+
+  {#===========================================================================
     SECTION 1: General helpers
   ===========================================================================#}
 
@@ -640,6 +655,623 @@ macroString: |-
               SELECT 1
           {%- endif -%}
       {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    SECTION 2b: Create / advanced deploy (Databricks)
+
+    First deploy           : CREATE OR REPLACE TABLE / VIEW.
+    Redeploy, table        : column changes are made on a clone, then copied back:
+                             Clone Table -> Delete / Rename / Alter / Add Column
+                             -> Replace Table using Clone -> Delete Table (clone).
+                             Comment, clustering, primary key and tags are altered
+                             on the table itself.
+    Redeploy, structural   : a change Databricks can not ALTER (partitioning, a column
+                             data type, the identity surrogate key) recreates the table
+                             and reloads its rows from the clone:
+                             Clone Table -> Recreate Table -> Reload Table from Clone
+                             -> Delete Table (clone).
+    Redeploy, view         : CREATE OR REPLACE VIEW when its definition changed.
+    Materialization change : drop the current object, create the new one.
+    Node deleted           : drop the object (and any leftover clone).
+  ===========================================================================#}
+
+  {#===========================================================================
+    sql_string(value): value escaped for a single-quoted Databricks string literal.
+  ===========================================================================#}
+  {%- macro sql_string(value) -%}
+      {{- value | default('', true) | string | replace("\\", "\\\\") | replace("'", "\\'") -}}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    match_columns_by_id(cols, colId, out): fills out.items (pass a namespace(items=[])) with
+    the columns of cols whose id equals colId, ignoring case. A column without @id has its
+    name as id, so renaming it reads as a dropped and an added column.
+  ===========================================================================#}
+  {%- macro match_columns_by_id(cols, colId, out) -%}
+      {%- set ns = namespace(items=[]) -%}
+      {%- for c in cols | default([]) if (c.id | string | lower) == (colId | string | lower) -%}
+          {%- set ns.items = ns.items + [c] -%}
+      {%- endfor -%}
+      {%- set out.items = ns.items -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    drop_materialization(materialization): DROP keyword for a type, e.g. 'TABLE IF EXISTS'.
+  ===========================================================================#}
+  {%- macro drop_materialization(materialization) -%}
+      {%- if materialization | lower == 'view' -%}
+          VIEW IF EXISTS
+      {%- else -%}
+          TABLE IF EXISTS
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_pk_column_names(stateColumns, out): out.items = @primaryKey column names, by position.
+  ===========================================================================#}
+  {%- macro get_pk_column_names(stateColumns, out) -%}
+      {%- set ns = namespace(items=[]) -%}
+      {%- for col in stateColumns | default([]) if col.primaryKey is defined and col.primaryKey -%}
+          {%- set p = col.primaryKey.parameters if (col.primaryKey is mapping and col.primaryKey.parameters is defined) else [] -%}
+          {%- set ns.items = ns.items + [{'position': (p[0] | int(0)) if p | length > 0 else 0, 'name': col.name}] -%}
+      {%- endfor -%}
+      {%- set out.items = ns.items | sort(attribute='position') | map(attribute='name') | list -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_primary_key_sql(stateNode, stateColumns): CONSTRAINT `pk_<node>` PRIMARY KEY (...), or ''.
+    Databricks primary keys are informational (Unity Catalog) and need NOT NULL key columns.
+  ===========================================================================#}
+  {%- macro get_primary_key_sql(stateNode, stateColumns) -%}
+      {%- set pk = namespace(items=[]) -%}
+      {{- get_pk_column_names(stateColumns, pk) -}}
+      {%- if pk.items | length > 0 -%}
+          CONSTRAINT `pk_{{ stateNode.name }}` PRIMARY KEY ({% for c in pk.items %}`{{ c }}`{% if not loop.last %}, {% endif %}{% endfor %})
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_partition_by_sql(stateConfig, stateColumns): PARTITIONED BY (...) from the node-level
+    @partitionBy("col1, col2") and/or column-level @partitionBy flags; '' when none.
+  ===========================================================================#}
+  {%- macro get_partition_by_sql(stateConfig, stateColumns) -%}
+      {%- set part = namespace(items=[]) -%}
+      {%- set pc = stateConfig.partitionBy if (stateConfig and stateConfig.partitionBy is defined) else none -%}
+      {%- if pc is mapping and pc.parameters is defined and pc.parameters | length > 0 -%}
+          {%- for p in (pc.parameters[0] | string).split(',') if p | trim | length > 0 -%}
+              {%- set part.items = part.items + ['`' ~ (p | trim | replace('`', '')) ~ '`'] -%}
+          {%- endfor -%}
+      {%- endif -%}
+      {%- for col in stateColumns | default([]) if col.partitionBy is defined and col.partitionBy -%}
+          {%- set part.items = part.items + ['`' ~ col.name ~ '`'] -%}
+      {%- endfor -%}
+      {%- if part.items | length > 0 -%}
+          PARTITIONED BY ({{ part.items | join(', ') }})
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_cluster_by_sql(stateColumns): CLUSTER BY (...) from @clusterKey(<position>); '' when none.
+  ===========================================================================#}
+  {%- macro get_cluster_by_sql(stateColumns) -%}
+      {%- set ns = namespace(items=[]) -%}
+      {%- for col in stateColumns | default([]) if col.clusterKey is defined and col.clusterKey -%}
+          {%- set p = col.clusterKey.parameters if (col.clusterKey is mapping and col.clusterKey.parameters is defined) else [] -%}
+          {%- set ns.items = ns.items + [{'position': (p[0] | int(0)) if p | length > 0 else 0, 'name': '`' ~ col.name ~ '`'}] -%}
+      {%- endfor -%}
+      {%- if ns.items | length > 0 -%}
+          CLUSTER BY ({{ ns.items | sort(attribute='position') | map(attribute='name') | join(', ') }})
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_table_properties_sql(stateColumns): TBLPROPERTIES with column mapping (needed to
+    rename / drop columns) and, when a column has a DEFAULT, the column-defaults feature.
+  ===========================================================================#}
+  {%- macro get_table_properties_sql(stateColumns) -%}
+      {%- set hasDefault = stateColumns | default([]) | rejectattr('isSurrogateKey') | selectattr('defaultValue') | list | length > 0 -%}
+      TBLPROPERTIES('delta.columnMapping.mode' = 'name'{%- if hasDefault %}, 'delta.feature.allowColumnDefaults' = 'supported'{%- endif %})
+  {%- endmacro -%}
+
+  {#===========================================================================
+    column_definition_sql(col, pkNames): one column of CREATE TABLE. The surrogate key is a
+    BIGINT GENERATED BY DEFAULT AS IDENTITY column; primary key columns are always NOT NULL.
+  ===========================================================================#}
+  {%- macro column_definition_sql(col, pkNames) -%}
+      `{{ col.name }}` {{ col.dataType }}
+      {%- if col.isSurrogateKey %} GENERATED BY DEFAULT AS IDENTITY (START WITH 1 INCREMENT BY 1)
+      {%- elif col.defaultValue %} DEFAULT {{ col.defaultValue }}
+      {%- endif %}
+      {%- if col.nullable == false or col.name in pkNames %} NOT NULL{%- endif %}
+      {%- if col.description | default('', true) | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}'{%- endif %}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    table_ddl_sql(state, path): CREATE OR REPLACE TABLE for a node state.
+  ===========================================================================#}
+  {%- macro table_ddl_sql(state, path) -%}
+      {%- set pk = namespace(items=[]) -%}
+      {{- get_pk_column_names(state.columns, pk) -}}
+      {%- set pkSql = get_primary_key_sql(state.node, state.columns) | trim -%}
+      {%- set partSql = get_partition_by_sql(state.config, state.columns) | trim -%}
+      {%- set clusterSql = get_cluster_by_sql(state.columns) | trim -%}
+      {%- set description = state.node.description | default('', true) | trim -%}
+      CREATE OR REPLACE TABLE {{ path }}
+      (
+          {%- for col in state.columns %}
+          {{ column_definition_sql(col, pk.items) }}{%- if not loop.last or pkSql | length > 0 %},{% endif %}
+          {%- endfor %}
+          {%- if pkSql | length > 0 %}
+          {{ pkSql }}
+          {%- endif %}
+      )
+      {%- if partSql | length > 0 %}
+      {{ partSql }}
+      {%- endif %}
+      {%- if clusterSql | length > 0 %}
+      {{ clusterSql }}
+      {%- endif %}
+      {%- if description | length > 0 %}
+      COMMENT '{{ sql_string(description) }}'
+      {%- endif %}
+      {{ get_table_properties_sql(state.columns) }}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    view_definition_sql(state): column list, comments and AS SELECT of a view, for a node state.
+  ===========================================================================#}
+  {%- macro view_definition_sql(state) -%}
+      {%- set description = state.node.description | default('', true) | trim -%}
+      (
+          {%- for col in state.columns %}
+          `{{ col.name }}`
+          {%- if col.description | default('', true) | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}'{%- endif %}
+          {%- if not loop.last %},{% endif %}
+          {%- endfor %}
+      )
+      {%- if description | length > 0 %}
+      COMMENT '{{ sql_string(description) }}'
+      {%- endif %}
+      AS
+      {{ state.sources[0].cteString }}
+      SELECT {{ state.sources[0].selectModifier | default('', true) }}
+      {%- for col in state.sources[0].columns %}
+          {{ get_source_transform(col) }} AS `{{ col.name }}`
+          {%- if not loop.last %},{% endif %}
+      {%- endfor %}
+      {{ state.sources[0].join }}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_tags(stateConfig, out): out.entries = [{key, value, count}] from the node's @tag
+    annotations; when a key is applied more than once the last value wins.
+  ===========================================================================#}
+  {%- macro get_tags(stateConfig, out) -%}
+      {%- set ns = namespace(entries=[]) -%}
+      {%- set tagList = stateConfig.tag if (stateConfig and stateConfig.tag is defined and stateConfig.tag) else [] -%}
+      {%- set tagList = [tagList] if tagList is mapping else tagList -%}
+      {%- for t in tagList if t is mapping and t.parameters is defined and t.parameters | length > 1 -%}
+          {%- set k = t.parameters[0] | string | trim -%}
+          {%- set prev = ns.entries | selectattr('key', 'equalto', k) | list -%}
+          {%- set ns.entries = (ns.entries | rejectattr('key', 'equalto', k) | list)
+                  + [{'key': k, 'value': t.parameters[1] | string | trim, 'count': (prev[0].count + 1) if prev else 1}] -%}
+      {%- endfor -%}
+      {%- set out.entries = ns.entries -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    tags_alter_sql(objectKind, path, curConfig, desConfig, setAll): "Unset Tags" for keys no
+    longer set, "Set Tags" for new / changed keys (every key when setAll). objectKind TABLE / VIEW.
+  ===========================================================================#}
+  {%- macro tags_alter_sql(objectKind, path, curConfig, desConfig, setAll=false) -%}
+      {%- set cur = namespace(entries=[]) -%}
+      {%- if curConfig -%}{{- get_tags(curConfig, cur) -}}{%- endif -%}
+      {%- set des = namespace(entries=[]) -%}
+      {{- get_tags(desConfig, des) -}}
+      {%- set desKeys = des.entries | map(attribute='key') | list -%}
+      {%- set toSet = namespace(items=[]) -%}
+      {%- for t in des.entries -%}
+          {%- set same = cur.entries | selectattr('key', 'equalto', t.key) | selectattr('value', 'equalto', t.value) | list -%}
+          {%- if setAll or not same -%}
+              {%- set toSet.items = toSet.items + ["'" ~ sql_string(t.key) ~ "' = '" ~ sql_string(t.value) ~ "'"] -%}
+          {%- endif -%}
+      {%- endfor -%}
+      {%- set toUnset = namespace(items=[]) -%}
+      {%- for t in cur.entries if t.key not in desKeys -%}
+          {%- set toUnset.items = toUnset.items + ["'" ~ sql_string(t.key) ~ "'"] -%}
+      {%- endfor -%}
+      {%- if toUnset.items | length > 0 %}
+          {{ stage('Unset Tags') }}
+          ALTER {{ objectKind }} {{ path }} UNSET TAGS ({{ toUnset.items | join(', ') }})
+      {%- endif %}
+      {%- if toSet.items | length > 0 %}
+          {{ stage('Set Tags') }}
+          ALTER {{ objectKind }} {{ path }} SET TAGS ({{ toSet.items | join(', ') }})
+      {%- endif %}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    tag_check_duplicates(): non-blocking warning when the same @tag key is applied more than
+    once (the last value is applied). Call at the start of create.
+  ===========================================================================#}
+  {%- macro tag_check_duplicates() -%}
+      {%- set t = namespace(entries=[]) -%}
+      {{- get_tags(config, t) -}}
+      {%- set dupes = t.entries | selectattr('count', 'gt', 1) | list -%}
+      {%- if dupes | length > 0 %}
+          {{ test_stage('Warning: Duplicate Tags Found: ' ~ node.name, true) }}
+          -- The same tag key is applied more than once; the last @tag for each key is applied:
+          {%- for d in dupes %}
+          --   {{ d.key }} applied {{ d.count }} times; applied value: '{{ d.value }}'
+          {%- endfor %}
+          SELECT 1
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    validate_partition_cluster(hardFail): partitioning on the node or on columns (not both),
+    column-level @partitionBy takes no parameters, partitioning and liquid clustering can not
+    be combined, at most 4 clustering columns. Call in the table branch of create.
+  ===========================================================================#}
+  {%- macro validate_partition_cluster(hardFail=true) -%}
+      {%- set nodePart = config.partitionBy is defined and config.partitionBy -%}
+      {%- set partColumns = columns | selectattr('partitionBy', 'defined') | selectattr('partitionBy') | list -%}
+      {%- set clusterColumns = columns | selectattr('clusterKey', 'defined') | selectattr('clusterKey') | map(attribute='name') | list -%}
+
+      {%- if nodePart and partColumns | length > 0 %}
+          {%- set reason = 'Partitioning is set both on the node (@partitionBy) and on column(s) ' ~ (partColumns | map(attribute='name') | join(', ')) ~ '. Use one or the other.' %}
+          {{ test_stage('Invalid configuration: partitionBy', false) }}
+          -- {{ reason }}
+          {{ fail_sql(hardFail, reason) }}
+      {%- endif -%}
+
+      {%- set withParams = partColumns | selectattr('partitionBy', 'mapping') | list -%}
+      {%- for col in withParams if col.partitionBy.parameters is defined and col.partitionBy.parameters | length > 0 -%}
+          {%- if loop.first %}
+          {%- set reason = 'Column-level @partitionBy takes no parameters (found on ' ~ col.name ~ '). Use a bare @partitionBy, or list the columns in the node-level @partitionBy("col1, col2").' %}
+          {{ test_stage('Invalid configuration: partitionBy', false) }}
+          -- {{ reason }}
+          {{ fail_sql(hardFail, reason) }}
+          {%- endif -%}
+      {%- endfor -%}
+
+      {%- if (nodePart or partColumns | length > 0) and clusterColumns | length > 0 %}
+          {%- set reason = 'Partitioning (@partitionBy) and liquid clustering (@clusterKey on ' ~ (clusterColumns | join(', ')) ~ ') can not be combined on a Databricks table. Keep one of them.' %}
+          {{ test_stage('Invalid configuration: clusterKey', false) }}
+          -- {{ reason }}
+          {{ fail_sql(hardFail, reason) }}
+      {%- endif -%}
+
+      {%- if clusterColumns | length > 4 %}
+          {%- set reason = clusterColumns | length ~ ' columns are marked @clusterKey (' ~ (clusterColumns | join(', ')) ~ '). Databricks clusters by at most 4 columns.' %}
+          {{ test_stage('Invalid configuration: clusterKey', false) }}
+          -- {{ reason }}
+          {{ fail_sql(hardFail, reason) }}
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    object_drop_sql(): node deleted -> drop the current table / view (and a leftover clone).
+  ===========================================================================#}
+  {%- macro object_drop_sql() -%}
+      {%- if currentState is defined and currentState -%}
+          {%- set curMatType = get_materialization_type(currentState.node.materializationType) | trim -%}
+          {{ stage('Drop Current ' ~ (curMatType | title) ~ ' - ' ~ currentState.node.name, true, "sql", "drop") }}
+          DROP {{ drop_materialization(curMatType) }} {{ ref_no_link(currentState.node.location.name, currentState.node.name) }}
+          {%- if curMatType != 'view' %}
+          {{ stage('Delete Table') }}
+          DROP TABLE IF EXISTS {{ ref_no_link(currentState.node.location.name, currentState.node.name ~ '_COALESCE_INTERNAL_TABLE') }}
+          {%- endif %}
+      {%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    metadata_update_sql(): "Metadata Update-Default" when the node changed but no stage
+    altered the object (e.g. only tests or run settings changed).
+  ===========================================================================#}
+  {%- macro metadata_update_sql() -%}
+      {{ stage('Metadata Update-Default') }}
+      SELECT 1 = 0
+  {%- endmacro -%}
+
+  {#===========================================================================
+    deploy_view_sql(label): create / redeploy a view. Any definition change (columns, column
+    comments, view comment, SELECT) is a CREATE OR REPLACE VIEW; tags are altered in place.
+  ===========================================================================#}
+  {%- macro deploy_view_sql(label) -%}
+      {%- set desPath = ref_no_link(node.location.name, node.name) -%}
+      {%- set hasCurrent = currentState is defined and currentState -%}
+      {%- set curMatType = (get_materialization_type(currentState.node.materializationType) | trim) if hasCurrent else '' -%}
+      {%- set curPath = ref_no_link(currentState.node.location.name, currentState.node.name) if hasCurrent else '' -%}
+
+      {%- if not hasCurrent or curMatType != 'view' or curPath != desPath %}
+          {%- if hasCurrent %}
+          {{ stage('Drop Current ' ~ (curMatType | title) ~ ' - ' ~ currentState.node.name, true, "sql", "drop") }}
+          DROP {{ drop_materialization(curMatType) }} {{ curPath }}
+          {%- if curMatType != 'view' %}
+          {{ stage('Delete Table') }}
+          DROP TABLE IF EXISTS {{ ref_no_link(currentState.node.location.name, currentState.node.name ~ '_COALESCE_INTERNAL_TABLE') }}
+          {%- endif %}
+          {%- endif %}
+          {{ stage('Create ' ~ label ~ ' View', true, "sql", "create") }}
+          CREATE OR REPLACE VIEW {{ desPath }}
+          {{ view_definition_sql(desiredState) }}
+          {{ tags_alter_sql('VIEW', desPath, none, config, true) }}
+
+      {%- elif currentState != desiredState %}
+          {%- set viewChanged = view_definition_sql(currentState) != view_definition_sql(desiredState) -%}
+          {%- set alterSql -%}
+              {%- if viewChanged %}
+              {{ stage('Create ' ~ label ~ ' View', true, "sql", "create") }}
+              CREATE OR REPLACE VIEW {{ desPath }}
+              {{ view_definition_sql(desiredState) }}
+              {%- endif %}
+              {{ tags_alter_sql('VIEW', desPath, currentState.config, config, viewChanged) }}
+          {%- endset -%}
+          {%- if alterSql | trim | length > 0 %}
+          {{ alterSql }}
+          {%- else %}
+          {{ metadata_update_sql() }}
+          {%- endif %}
+      {%- endif %}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    deploy_table_sql(label): create / redeploy a table (see the section header for the flow).
+  ===========================================================================#}
+  {%- macro deploy_table_sql(label) -%}
+      {%- set desPath = ref_no_link(node.location.name, node.name) -%}
+      {%- set hasCurrent = currentState is defined and currentState -%}
+      {%- set curMatType = (get_materialization_type(currentState.node.materializationType) | trim) if hasCurrent else '' -%}
+
+      {%- if not hasCurrent or curMatType != 'table' %}
+
+          {# First deploy, or the node was a view: (drop the view and) create the table #}
+          {%- if hasCurrent %}
+          {{ stage('Drop Current ' ~ (curMatType | title) ~ ' - ' ~ currentState.node.name, true, "sql", "drop") }}
+          DROP {{ drop_materialization(curMatType) }} {{ ref_no_link(currentState.node.location.name, currentState.node.name) }}
+          {%- endif %}
+          {{ stage('Create ' ~ label ~ ' Table', true, "sql", "create") }}
+          {{ table_ddl_sql(desiredState, desPath) }}
+          {{ tags_alter_sql('TABLE', desPath, none, config, true) }}
+
+      {%- elif currentState != desiredState %}
+
+          {%- set cur = currentState -%}
+          {%- set curPath = ref_no_link(cur.node.location.name, cur.node.name) -%}
+          {%- set clonePath = ref_no_link(cur.node.location.name, cur.node.name ~ '_COALESCE_INTERNAL_TABLE') -%}
+          {%- set pathChanged = curPath != desPath -%}
+
+          {%- set curPk = namespace(items=[]) -%}
+          {{- get_pk_column_names(cur.columns, curPk) -}}
+          {%- set desPk = namespace(items=[]) -%}
+          {{- get_pk_column_names(columns, desPk) -}}
+          {%- set pkChanged = (curPk.items | join(',') | lower) != (desPk.items | join(',') | lower) -%}
+
+          {# Column differences, matched by @id #}
+          {%- set d = namespace(dropped=[], renamed=[], modified=[], added=[], reload=[], typeChanged=[], identityChanged=false, identityReloaded=[]) -%}
+          {%- for curCol in cur.columns -%}
+              {%- set m = namespace(items=[]) -%}
+              {{- match_columns_by_id(columns, curCol.id, m) -}}
+              {%- if not m.items -%}
+                  {%- set d.dropped = d.dropped + [curCol.name] -%}
+                  {%- if curCol.isSurrogateKey -%}{%- set d.identityChanged = true -%}{%- endif -%}
+              {%- else -%}
+                  {%- set desCol = m.items | first -%}
+                  {%- set curIsSk = true if curCol.isSurrogateKey else false -%}
+                  {%- set desIsSk = true if desCol.isSurrogateKey else false -%}
+                  {%- if curIsSk != desIsSk -%}{%- set d.identityChanged = true -%}{%- endif -%}
+                  {# Rows copied by a recreate; an identity column only when it already was one (else it is generated) #}
+                  {%- if not desIsSk or curIsSk -%}
+                      {%- set d.reload = d.reload + [{'from': curCol.name, 'to': desCol.name, 'dataType': desCol.dataType}] -%}
+                      {%- if desIsSk -%}{%- set d.identityReloaded = d.identityReloaded + [desCol.name] -%}{%- endif -%}
+                  {%- endif -%}
+                  {%- if (desCol.name | lower) != (curCol.name | lower) -%}
+                      {%- set d.renamed = d.renamed + [{'from': curCol.name, 'to': desCol.name}] -%}
+                  {%- endif -%}
+                  {%- if (curCol.dataType | upper | replace(' ', '')) != (desCol.dataType | upper | replace(' ', '')) -%}
+                      {%- set d.typeChanged = d.typeChanged + [desCol.name ~ ' (' ~ curCol.dataType ~ ' -> ' ~ desCol.dataType ~ ')'] -%}
+                  {%- endif -%}
+                  {# Comment, NOT NULL and DEFAULT changes, applied on the clone by the new column name #}
+                  {%- set curDesc = curCol.description | default('', true) | trim -%}
+                  {%- set desDesc = desCol.description | default('', true) | trim -%}
+                  {%- set curNN = curCol.nullable == false or curCol.name in curPk.items -%}
+                  {%- set desNN = desCol.nullable == false or desCol.name in desPk.items -%}
+                  {%- set curDef = '' if curIsSk else (curCol.defaultValue | default('', true) | string | trim) -%}
+                  {%- set desDef = '' if desIsSk else (desCol.defaultValue | default('', true) | string | trim) -%}
+                  {%- if curDesc != desDesc -%}
+                      {%- set d.modified = d.modified + [{'name': desCol.name, 'sql': "COMMENT '" ~ sql_string(desDesc) ~ "'"}] -%}
+                  {%- endif -%}
+                  {%- if desNN and not curNN -%}
+                      {%- set d.modified = d.modified + [{'name': desCol.name, 'sql': 'SET NOT NULL'}] -%}
+                  {%- elif curNN and not desNN -%}
+                      {%- set d.modified = d.modified + [{'name': desCol.name, 'sql': 'DROP NOT NULL'}] -%}
+                  {%- endif -%}
+                  {%- if curDef != desDef -%}
+                      {%- set d.modified = d.modified + [{'name': desCol.name, 'sql': ('SET DEFAULT ' ~ desDef) if desDef | length > 0 else 'DROP DEFAULT'}] -%}
+                  {%- endif -%}
+              {%- endif -%}
+          {%- endfor -%}
+          {%- for desCol in columns -%}
+              {%- set m = namespace(items=[]) -%}
+              {{- match_columns_by_id(cur.columns, desCol.id, m) -}}
+              {%- if not m.items -%}
+                  {%- set d.added = d.added + [desCol] -%}
+                  {%- if desCol.isSurrogateKey -%}{%- set d.identityChanged = true -%}{%- endif -%}
+              {%- endif -%}
+          {%- endfor -%}
+
+          {# Databricks can not ALTER partitioning, a column data type or an identity column: recreate the table and reload it from the clone #}
+          {%- set partitionChanged = (get_partition_by_sql(cur.config, cur.columns) | trim | lower) != (get_partition_by_sql(config, columns) | trim | lower) -%}
+          {%- set recreate = partitionChanged or d.identityChanged or d.typeChanged | length > 0 -%}
+
+          {%- set alterSql -%}
+          {%- if recreate %}
+
+              {{ stage('Clone Table') }}
+              CREATE OR REPLACE TABLE {{ clonePath }} DEEP CLONE {{ curPath }} TBLPROPERTIES('delta.columnMapping.mode' = 'name')
+
+              {{ stage('Recreate ' ~ label ~ ' Table', true, "sql", "create") }}
+              -- Recreated because Databricks can not alter:
+              {%- if partitionChanged %}
+              --   the partitioning
+              {%- endif %}
+              {%- if d.identityChanged %}
+              --   the identity surrogate key column
+              {%- endif %}
+              {%- for t in d.typeChanged %}
+              --   the data type of {{ t }}
+              {%- endfor %}
+              {{ table_ddl_sql(desiredState, desPath) }}
+
+              {%- if d.reload | length > 0 %}
+              {{ stage('Reload Table from Clone') }}
+              INSERT INTO {{ desPath }}
+              (
+                  {%- for r in d.reload %}
+                  `{{ r.to }}`{%- if not loop.last %},{% endif %}
+                  {%- endfor %}
+              )
+              SELECT
+                  {%- for r in d.reload %}
+                  CAST(`{{ r.from }}` AS {{ r.dataType }}) AS `{{ r.to }}`{%- if not loop.last %},{% endif %}
+                  {%- endfor %}
+              FROM {{ clonePath }}
+              {%- endif %}
+
+              {# Reloaded identity values were inserted explicitly: move the identity high-water mark past them #}
+              {%- for c in d.identityReloaded %}
+              {{ stage('Sync Identity: `' ~ c ~ '`') }}
+              ALTER TABLE {{ desPath }} ALTER COLUMN `{{ c }}` SYNC IDENTITY
+              {%- endfor %}
+
+              {%- if pathChanged %}
+              {{ stage('Drop Current Table - ' ~ cur.node.name, true, "sql", "drop") }}
+              DROP TABLE IF EXISTS {{ curPath }}
+              {%- endif %}
+
+              {{ stage('Delete Table') }}
+              DROP TABLE IF EXISTS {{ clonePath }}
+
+              {{ tags_alter_sql('TABLE', desPath, none if pathChanged else cur.config, config, true) }}
+
+          {%- else %}
+
+              {%- set needClone = d.dropped | length > 0 or d.renamed | length > 0 or d.modified | length > 0 or d.added | length > 0 or pathChanged -%}
+              {%- set curCluster = get_cluster_by_sql(cur.columns) | trim -%}
+              {%- set desCluster = get_cluster_by_sql(columns) | trim -%}
+              {%- set clusterChanged = (curCluster | lower) != (desCluster | lower) -%}
+
+              {%- if needClone %}
+              {%- set tblProps = get_table_properties_sql(columns) | trim %}
+
+              {{ stage('Clone Table') }}
+              CREATE OR REPLACE TABLE {{ clonePath }} DEEP CLONE {{ curPath }} {{ tblProps }}
+
+              {# The old key blocks DROP NOT NULL / dropping or renaming its columns: drop it first, it is re-added on the table #}
+              {%- if pkChanged and curPk.items | length > 0 %}
+              {{ stage('Drop Primary Key') }}
+              ALTER TABLE {{ clonePath }} DROP PRIMARY KEY IF EXISTS
+              {%- endif %}
+
+              {# The old clustering blocks dropping its columns: remove it, the new one is set on the table #}
+              {%- if clusterChanged and curCluster | length > 0 %}
+              {{ stage('Alter Cluster By') }}
+              ALTER TABLE {{ clonePath }} CLUSTER BY NONE
+              {%- endif %}
+
+              {%- if d.dropped | length > 0 %}
+              {{ stage('Delete Column') }}
+              ALTER TABLE {{ clonePath }}
+              DROP COLUMNS ({% for c in d.dropped %}`{{ c }}`{% if not loop.last %}, {% endif %}{% endfor %})
+              {%- endif %}
+
+              {%- for r in d.renamed %}
+              {{ stage('Rename Column') }}
+              ALTER TABLE {{ clonePath }}
+              RENAME COLUMN `{{ r.from }}` TO `{{ r.to }}`
+              {%- endfor %}
+
+              {%- for mod in d.modified %}
+              {{ stage('Alter Column: `' ~ mod.name ~ '`') }}
+              ALTER TABLE {{ clonePath }}
+              ALTER COLUMN `{{ mod.name }}` {{ mod.sql }}
+              {%- endfor %}
+
+              {%- if d.added | length > 0 %}
+              {{ stage('Add Column') }}
+              ALTER TABLE {{ clonePath }}
+              ADD COLUMNS (
+                  {%- for col in d.added %}
+                  `{{ col.name }}` {{ col.dataType }}
+                  {%- if col.description | default('', true) | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}'{%- endif %}
+                  {%- if not loop.last %},{% endif %}
+                  {%- endfor %}
+              )
+              {# A column DEFAULT can not be given in ADD COLUMNS on Delta: set it after the add (existing rows stay NULL) #}
+              {%- for col in d.added if col.defaultValue and not col.isSurrogateKey %}
+              {{ stage('Alter Column: `' ~ col.name ~ '`') }}
+              ALTER TABLE {{ clonePath }}
+              ALTER COLUMN `{{ col.name }}` SET DEFAULT {{ col.defaultValue }}
+              {%- endfor %}
+              {%- set notNullAdded = d.added | selectattr('nullable', 'equalto', false) | map(attribute='name') | list
+                                     + (d.added | map(attribute='name') | select('in', desPk.items) | list) %}
+              {%- if notNullAdded | length > 0 %}
+              {{ test_stage('Warning: NOT NULL Not Applied', true) }}
+              -- NOT NULL is not applied to the new column(s) {{ notNullAdded | unique | join(', ') }}: existing rows have no value for them.
+              -- Backfill the column(s) and redeploy, or recreate the table, to apply NOT NULL (and a primary key on them).
+              SELECT 1 AS MESSAGE
+              {%- endif %}
+              {%- endif %}
+
+              {{ stage('Replace Table using Clone') }}
+              CREATE OR REPLACE TABLE {{ desPath }} DEEP CLONE {{ clonePath }} {{ tblProps }}
+
+              {%- if pathChanged %}
+              {{ stage('Drop Current Table - ' ~ cur.node.name, true, "sql", "drop") }}
+              DROP TABLE IF EXISTS {{ curPath }}
+              {%- endif %}
+
+              {{ stage('Delete Table') }}
+              DROP TABLE IF EXISTS {{ clonePath }}
+              {%- endif %}
+
+              {# Table-level changes, made on the table itself #}
+              {%- set curDescription = cur.node.description | default('', true) | trim -%}
+              {%- set desDescription = node.description | default('', true) | trim -%}
+              {%- if curDescription != desDescription %}
+              {{ stage('Alter Table Comment') }}
+              COMMENT ON TABLE {{ desPath }} IS {{ ("'" ~ sql_string(desDescription) ~ "'") if desDescription | length > 0 else 'NULL' }}
+              {%- endif %}
+
+              {%- if clusterChanged and (desCluster | length > 0 or not needClone) %}
+              {{ stage('Alter Cluster By') }}
+              ALTER TABLE {{ desPath }} {{ desCluster if desCluster | length > 0 else 'CLUSTER BY NONE' }}
+              {%- endif %}
+
+              {%- if pkChanged or (pathChanged and desPk.items | length > 0) %}
+              {%- if curPk.items | length > 0 or needClone %}
+              {{ stage('Drop Primary Key') }}
+              ALTER TABLE {{ desPath }} DROP PRIMARY KEY IF EXISTS
+              {%- endif %}
+              {%- if desPk.items | length > 0 %}
+              {{ stage('Add Primary Key') }}
+              ALTER TABLE {{ desPath }} ADD {{ get_primary_key_sql(node, columns) }}
+              {%- endif %}
+              {%- endif %}
+
+              {{ tags_alter_sql('TABLE', desPath, none if pathChanged else cur.config, config, needClone) }}
+
+          {%- endif %}
+          {%- endset -%}
+
+          {%- if alterSql | trim | length > 0 %}
+          {{ alterSql }}
+          {%- else %}
+          {{ metadata_update_sql() }}
+          {%- endif %}
+      {%- endif %}
   {%- endmacro -%}
 
   {#===========================================================================

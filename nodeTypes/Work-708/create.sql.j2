@@ -2,49 +2,39 @@
     Copyright (c) 2026 Coalesce. All rights reserved.
 This script and its associated documentation are confidential and proprietary to Coalesce.
 Unauthorized reproduction, distribution, or disclosure of this material is strictly prohibited.
-Coalesce permits you to copy and modify this script for the purposes of using with Coalesce but does not permit copying or modification for any other purpose.  
+Coalesce permits you to copy and modify this script for the purposes of using with Coalesce but does not permit copying or modification for any other purpose.
 #}
 {# == Node Type Name           : Work  == #}
-{# == Node Type Description    : This node creates work table or view  == #}
+{# == Node Type Description    : This node creates work table or view with advanced deployment strategy  == #}
 {#---------------------------------------------------------------------------------------------#}
 
-{%- if node.materializationType == 'table' %}
+{#- Advanced deploy: node / columns / config / sources point at desiredState (shared macros, section 0).
+    First deploy has no currentState; a deleted node has no desiredState.
+    The create / redeploy stages are built by deploy_table_sql() / deploy_view_sql() in the shared macros. #}
 
-    {# CreateSQL for Table #}
-    {%- set ns = namespace(hasDefault=false) %}
-    {{ stage('Create ' + node.materializationType ) }}
-	CREATE OR REPLACE {{ node.materializationType }} {{ ref_no_link(node.location.name, node.name) }}
-	(
-		{%- for col in columns %}
-			`{{ col.name }}` {{ col.dataType }}
-			{%- if col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- set ns.hasDefault = true %} {%- endif %}
-			{%- if col.nullable == false %} NOT NULL {%- endif %}
-			{%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %}
-			{%- if not loop.last -%}, {%- endif %}
-		{%- endfor %}
-	)
-	{%- if node.description | trim | length > 0 %} COMMENT '{{ node.description | escape }}'{% endif %}
-    TBLPROPERTIES('delta.columnMapping.mode' = 'name'{%- if ns.hasDefault %}, 'delta.feature.allowColumnDefaults' = 'supported'{%- endif %})
+{%- if desiredState %}
 
-{%- elif node.materializationType == 'view' %}
+    {# Validate: the materialization type must be table or view #}
+    {{ validate_materialization_type() }}
 
-    {# CreateSQL for View #}
-    {{ stage('Create ' + node.materializationType ) }}
-    CREATE OR REPLACE {{ node.materializationType }} {{ ref_no_link(node.location.name, node.name) }}
-    (
-        {%- for col in columns %}
-            `{{ col.name }}`
-            {%- if col.description | trim | length > 0 %} COMMENT '{{ col.description | escape }}'{% endif %}
-            {%- if not loop.last -%}, {%- endif %}
-        {%- endfor %}
-    )
-    {%- if node.description | length > 0 %} COMMENT '{{ node.description | escape }}'{% endif %}
-    AS    
-    {{ sources[0].cteString }}
-    SELECT {{ sources[0].selectModifier | default('', true) }}
-    {%- for col in sources[0].columns %}
-        {{ get_source_transform(col) }} AS `{{ col.name }}`
-        {%- if not loop.last -%}, {%- endif %}
-    {%- endfor %}
-    {{ sources[0].join }}
+    {%- if get_materialization_type(node.materializationType) | trim == 'view' %}
+
+        {# Create the view, or recreate it when its definition changed #}
+        {{ deploy_view_sql('Work') }}
+
+    {%- else %}
+
+        {# Create the table, or redeploy it:
+           column changes  -> Clone Table -> Delete / Rename / Alter / Add Column -> Replace Table using Clone -> Delete Table
+           data type change -> Clone Table -> Recreate Table -> Reload Table from Clone -> Delete Table
+           comment -> altered on the table #}
+        {{ deploy_table_sql('Work') }}
+
+    {%- endif %}
+
+{%- elif currentState is defined and currentState %}
+
+    {# Node deleted: drop the current object #}
+    {{ object_drop_sql() }}
+
 {%- endif %}
