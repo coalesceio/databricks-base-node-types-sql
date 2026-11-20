@@ -40,6 +40,7 @@ metadata:
             • Applies a Unity Catalog tag to this table or view (ALTER ... SET TAGS) after it is created.
             • Repeat the annotation to apply multiple tags; a tag key can only be used once per table or view.
             • Applies to views as well as tables.
+            • To tag a column, put @tag on the column instead.
           allowsMultiple: true
           parameters:
             - name: tagName
@@ -182,6 +183,27 @@ metadata:
             • ⚠️ On redeployment, a partitioning change recreates the table and reloads its rows from a clone.
             • Ignored on views.
           isRequired: false
+
+        - name: tag
+          description: |-
+            • Applies a Unity Catalog tag to this column, e.g. @tag("pii", "email").
+            • Created with the table as `<column>` <type> WITH TAGS ('pii' = 'email'); on redeployment a changed tag is
+              set with ALTER TABLE ... ALTER COLUMN ... SET TAGS, and a removed one unset with UNSET TAGS.
+            • Repeat the annotation to apply multiple tags; a tag key can only be used once per column.
+            • Ignored on views (a warning is raised) — use a node-level @tag to tag the view.
+          allowsMultiple: true
+          parameters:
+            - name: tagName
+              type: string
+              description: • Tag key.
+              isRequired: true
+              example: pii
+
+            - name: tagValue
+              type: string
+              description: • Tag value.
+              isRequired: true
+              example: email
 
         - name: inHash
           description: >-

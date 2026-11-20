@@ -818,29 +818,51 @@ macroString: |-
 
   {#===========================================================================
     tag_check_duplicates(): non-blocking "Warning: Duplicate Tags Found: <node>" check when the same tag
-    key is applied more than once — a Databricks table or view holds one value per tag key, so the last
-    @tag for that key is the one applied. Call at the start of create, before any DDL.
+    key is applied more than once to the node or to one column — a Databricks table, view or column holds
+    one value per tag key, so the last @tag for that key is the one applied. Non-blocking
+    "Warning: Column Tags Ignored" when a view has column-level @tag (column tags are applied to tables
+    only). Call at the start of create, before any DDL.
   ===========================================================================#}
   {%- macro tag_check_duplicates() -%}
+      {%- set dupes = namespace(items=[]) -%}
       {%- set uniqueTags = namespace(entries=[]) -%}
       {{- get_unique_tags(config.tag, uniqueTags) -}}
-      {%- set dupeTags = uniqueTags.entries | selectattr('count', 'gt', 1) | list -%}
-      {%- if dupeTags | length > 0 %}
+      {%- for t in uniqueTags.entries | selectattr('count', 'gt', 1) -%}
+          {%- set dupes.items = dupes.items + [node.name ~ ': ' ~ t.key ~ ' applied ' ~ t.count ~ " times; applied value: '" ~ t.value ~ "'"] -%}
+      {%- endfor -%}
+      {%- for col in columns if col.tag is defined and col.tag -%}
+          {%- set colTags = namespace(entries=[]) -%}
+          {{- get_unique_tags(col.tag, colTags) -}}
+          {%- for t in colTags.entries | selectattr('count', 'gt', 1) -%}
+              {%- set dupes.items = dupes.items + ['column ' ~ col.name ~ ': ' ~ t.key ~ ' applied ' ~ t.count ~ " times; applied value: '" ~ t.value ~ "'"] -%}
+          {%- endfor -%}
+      {%- endfor -%}
+      {%- if dupes.items | length > 0 %}
           {{ test_stage('Warning: Duplicate Tags Found: ' + node.name, true) }}
-          -- A Databricks table or view holds one value per tag key, so the last @tag for each key below is applied and the earlier ones are ignored:
-          {%- for t in dupeTags %}
-          --   {{ t.key }} applied {{ t.count }} times; applied value: '{{ t.value }}'
+          -- A Databricks table, view or column holds one value per tag key, so the last @tag for each key below is applied and the earlier ones are ignored:
+          {%- for d in dupes.items %}
+          --   {{ d }}
           {%- endfor %}
+          SELECT 1
+      {%- endif -%}
+
+      {%- set taggedColumns = columns | selectattr('tag', 'defined') | selectattr('tag') | map(attribute='name') | list -%}
+      {%- if nsNodeVariables.desiredMatType == 'view' and taggedColumns | length > 0 %}
+          {{ test_stage('Warning: Column Tags Ignored: ' + node.name, true) }}
+          -- @tag is set on column(s) {{ taggedColumns | join(', ') }} of a view. Column tags are applied to tables only, so these tags are not applied.
+          -- Tag the columns of the underlying table instead, or use a node-level @tag to tag the view.
           SELECT 1
       {%- endif -%}
   {%- endmacro -%}
 
   {#===========================================================================
-    alter_tags_sql(objectKind, path, curTagList, desTagList, setAll): Unity Catalog tags are not part of
-    CREATE TABLE / VIEW, so they are applied with ALTER: "Unset Tags" for keys no longer set, "Set Tags"
-    for new / changed keys (every key when setAll, e.g. after a create or replace). objectKind TABLE / VIEW.
+    alter_tags_sql(objectKind, path, curTagList, desTagList, setAll, columnName): Unity Catalog tags are
+    applied with ALTER: "Unset Tags" for keys no longer set, "Set Tags" for new / changed keys (every key
+    when setAll, e.g. after a create or replace). objectKind TABLE / VIEW. With columnName the tags of that
+    column are altered instead (ALTER TABLE ... ALTER COLUMN `col` SET / UNSET TAGS), in stages
+    "Unset Tags: `col`" / "Set Tags: `col`".
   ===========================================================================#}
-  {%- macro alter_tags_sql(objectKind, path, curTagList, desTagList, setAll=false) -%}
+  {%- macro alter_tags_sql(objectKind, path, curTagList, desTagList, setAll=false, columnName=none) -%}
       {%- set cur = namespace(entries=[]) -%}
       {{- get_unique_tags(curTagList, cur) -}}
       {%- set des = namespace(entries=[]) -%}
@@ -857,13 +879,15 @@ macroString: |-
       {%- for t in cur.entries if t.key not in desKeys -%}
           {%- set toUnset.items = toUnset.items + ["'" ~ sql_string(t.key) ~ "'"] -%}
       {%- endfor -%}
+      {%- set target = (' ALTER COLUMN `' ~ columnName ~ '`') if columnName else '' -%}
+      {%- set stageSuffix = (': `' ~ columnName ~ '`') if columnName else '' -%}
       {%- if toUnset.items | length > 0 %}
-          {{ stage('Unset Tags') }}
-          ALTER {{ objectKind }} {{ path }} UNSET TAGS ({{ toUnset.items | join(', ') }})
+          {{ stage('Unset Tags' ~ stageSuffix) }}
+          ALTER {{ objectKind }} {{ path }}{{ target }} UNSET TAGS ({{ toUnset.items | join(', ') }})
       {%- endif %}
       {%- if toSet.items | length > 0 %}
-          {{ stage('Set Tags') }}
-          ALTER {{ objectKind }} {{ path }} SET TAGS ({{ toSet.items | join(', ') }})
+          {{ stage('Set Tags' ~ stageSuffix) }}
+          ALTER {{ objectKind }} {{ path }}{{ target }} SET TAGS ({{ toSet.items | join(', ') }})
       {%- endif %}
   {%- endmacro -%}
 
@@ -1011,6 +1035,19 @@ macroString: |-
   ===========================================================================#}
   {%- macro get_identity_columns(nodeColumns) -%}
       {{- nodeColumns | default([]) | selectattr('isSurrogateKey') | map(attribute='id') | map('lower') | sort | join(',') -}}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    get_column_tags_sql(col): the WITH TAGS ('key' = 'value', ...) clause of a column in CREATE TABLE,
+    from the column-level @tag annotations (the last value wins for a repeated key); '' when none.
+    Example: `customer_email` STRING WITH TAGS ('pii' = 'email')
+  ===========================================================================#}
+  {%- macro get_column_tags_sql(col) -%}
+      {%- set colTags = namespace(entries=[]) -%}
+      {{- get_unique_tags(col.tag if col.tag is defined else none, colTags) -}}
+      {%- if colTags.entries | length > 0 -%}
+          WITH TAGS ({% for t in colTags.entries %}'{{ sql_string(t.key) }}' = '{{ sql_string(t.value) }}'{% if not loop.last %}, {% endif %}{% endfor %})
+      {%- endif -%}
   {%- endmacro -%}
 
   {#===========================================================================
@@ -1314,6 +1351,8 @@ macroString: |-
       "Alter Cluster By"         ALTER TABLE ... CLUSTER BY, when the clustering changed
       "Drop / Add Primary Key"   when the primary key changed (or the table was renamed)
       "Unset / Set Tags"         changed tags; every tag after the clone replaced the table
+      "Unset / Set Tags: `col`"  changed column tags (columns matched by @id, by their new name); every
+                                 column tag after the clone replaced the table, and on added columns
     Call after alter_clone_swap_sql(), before alter_delete_clone_sql().
   ===========================================================================#}
   {%- macro alter_table_options_sql() -%}
@@ -1353,6 +1392,15 @@ macroString: |-
           {%- endif %}
 
           {{ alter_tags_sql('TABLE', desiredPath, none if pathChanged else currentState.config.tag, config.tag, nsNodeVariables.tableReplaced) }}
+
+          {#- Column tags: compared with the current column of the same @id #}
+          {%- for desCol in columns %}
+              {%- set idMatch = namespace(items=[]) -%}
+              {{- match_columns_by_id(currentState.columns, desCol.id, idMatch) -}}
+              {%- set curCol = idMatch.items | first if idMatch.items else none -%}
+              {%- set curColTags = curCol.tag if (curCol and curCol.tag is defined and not pathChanged) else none -%}
+              {{ alter_tags_sql('TABLE', desiredPath, curColTags, desCol.tag if desCol.tag is defined else none, nsNodeVariables.tableReplaced, desCol.name) }}
+          {%- endfor %}
       {%- endset -%}
 
       {%- if optionsSql | trim | length > 0 %}
