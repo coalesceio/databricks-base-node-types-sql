@@ -17,17 +17,23 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
     {# Validate: the materialization type must be table or view #}
     {{ validate_materialization_type() }}
 
+    {# Warn: the same tag key applied more than once (the last value is applied) #}
+    {{ tag_check_duplicates() }}
+
     {%- if get_materialization_type(node.materializationType) | trim == 'view' %}
 
-        {# Create the view, or recreate it when its definition changed #}
+        {# Create the view, or recreate it when its definition changed; tags altered in place #}
         {{ deploy_view_sql('Work') }}
 
     {%- else %}
 
+        {# Validate: partition on the node or on columns, not combined with clustering, at most 4 cluster columns #}
+        {{ validate_partition_cluster() }}
+
         {# Create the table, or redeploy it:
            column changes  -> Clone Table -> Delete / Rename / Alter / Add Column -> Replace Table using Clone -> Delete Table
-           data type change -> Clone Table -> Recreate Table -> Reload Table from Clone -> Delete Table
-           comment -> altered on the table #}
+           partitioning or data type change -> Clone Table -> Recreate Table -> Reload Table from Clone -> Delete Table
+           comment, clustering, primary key, tags -> altered on the table #}
         {{ deploy_table_sql('Work') }}
 
     {%- endif %}
