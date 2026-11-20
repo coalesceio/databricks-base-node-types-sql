@@ -8,37 +8,153 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {# == Node Type Description    : This node creates work table or view with advanced deployment strategy  == #}
 {#---------------------------------------------------------------------------------------------#}
 
-{#- Advanced deploy: node / columns / config / sources point at desiredState (shared macros, section 0).
-    First deploy has no currentState; a deleted node has no desiredState.
-    The create / redeploy stages are built by deploy_table_sql() / deploy_view_sql() in the shared macros. #}
+{#- nsNodeVariables (object paths, materialization types, metaDataChanged) is created and initialized in the shared macros #}
+
+{#- Desired/current materialization type, normalized ("Table " = "table").
+    Empty string when the state is absent (first deploy has no currentState; delete has no desiredState). #}
+{%- set desiredMatType = nsNodeVariables.desiredMatType %}
+{%- set currentMatType = nsNodeVariables.currentMatType %}
 
 {%- if desiredState %}
 
     {# Validate: the materialization type must be table or view #}
     {{ validate_materialization_type() }}
 
-    {# Warn: the same tag key applied more than once (the last value is applied) #}
+    {# Validate: the same tag key applied twice to the node is only a warning (the last value is applied) #}
     {{ tag_check_duplicates() }}
 
-    {%- if get_materialization_type(node.materializationType) | trim == 'view' %}
+    {%- if desiredMatType == 'view' %}
 
-        {# Create the view, or recreate it when its definition changed; tags altered in place #}
-        {{ deploy_view_sql('Work') }}
+        {# Drop the current object if it was another type, or the view was renamed/moved #}
+        {{ object_drop_sql() }}
 
-    {%- else %}
+        {# Did the view definition change (columns, column comments, view comment, SELECT)? Render it for both states and compare #}
+        {%- set viewDefinitionChanged = currentState is not defined
+                or (currentState != desiredState
+                    and view_definition_sql(currentState) != view_definition_sql(desiredState)) %}
 
-        {# Validate: partition on the node or on columns, not combined with clustering, at most 4 cluster columns #}
+        {# Which view tags changed? Only those are set / unset #}
+        {%- set viewOptionsAlter = view_options_alter_sql(currentState, desiredState) | trim
+                if (currentState is defined and currentState != desiredState) else '' %}
+
+        {# CreateSQL for View #}
+        {%- if currentState is not defined
+                or currentMatType != desiredMatType
+                or nsNodeVariables.curObjectNameFullPath != nsNodeVariables.desObjectNameFullPath
+                or viewDefinitionChanged %}
+            {{ stage('Create Work View', true, "sql", "create") }}
+            CREATE OR REPLACE VIEW {{ nsNodeVariables.desObjectNameFullPath }}
+            {{ view_definition_sql(desiredState) }}
+
+            {# Unity Catalog tags are not part of CREATE VIEW: set them after it #}
+            {{ alter_tags_sql('VIEW', nsNodeVariables.desObjectNameFullPath, none, config.tag, true) }}
+
+        {%- elif viewOptionsAlter | length > 0 %}
+
+            {# Definition unchanged, tags changed: Unset Tags / Set Tags with only the changed keys #}
+            {{ viewOptionsAlter }}
+
+        {%- elif currentState != desiredState %}
+
+            {# Definition and tags unchanged (e.g. tests or run settings): record a metadata-only change #}
+            {{ alter_metadata_sql() }}
+
+        {%- endif %}
+
+    {%- elif desiredMatType == 'table' %}
+
+        {# Validate: partition on the node or on columns (not both), not combined with clustering, at most 4 cluster columns #}
         {{ validate_partition_cluster() }}
 
-        {# Create the table, or redeploy it:
-           column changes  -> Clone Table -> Delete / Rename / Alter / Add Column -> Replace Table using Clone -> Delete Table
-           partitioning or data type change -> Clone Table -> Recreate Table -> Reload Table from Clone -> Delete Table
-           comment, clustering, primary key, tags -> altered on the table #}
-        {{ deploy_table_sql('Work') }}
+        {# Drop the current object if it was another type #}
+        {{ object_drop_sql() }}
 
+        {%- set nsConfigVariables = namespace(options = "", partitionBy = "", clusterBy = "", primaryKey = "", primaryKeyColumns = [], createTable = false) %}
+
+        {# Initialise the variables necessary for create of table #}
+        {%- set nsConfigVariables.partitionBy = get_partition_by_sql(config, columns) | trim %}
+        {%- set nsConfigVariables.clusterBy = get_clusterby_sql(columns) | trim %}
+        {%- set nsConfigVariables.primaryKey = get_primary_key_sql(columns) | trim %}
+        {%- set pkColumns = namespace(items=[]) %}
+        {{- get_primary_key_columns(columns, pkColumns) }}
+        {%- set nsConfigVariables.primaryKeyColumns = pkColumns.items %}
+        {%- set nsConfigVariables.options = get_object_options_sql(config, node.description, false, columns) | trim %}
+
+        {# Databricks cannot alter these on an existing table: a partitioning change recreates it.
+           (A clustering change is altered in place; a move to another catalog / schema goes through the clone.) #}
+        {%- if currentState is defined and currentMatType == desiredMatType
+                and ((get_partition_by_sql(currentState.config, currentState.columns) | trim | lower) != (nsConfigVariables.partitionBy | lower)) %}
+            {%- set nsConfigVariables.createTable = true %}
+        {%- endif %}
+
+        {%- if currentState is not defined or currentMatType != desiredMatType or nsConfigVariables.createTable %}
+
+            {# Drop current table before recreating it #}
+            {%- if nsConfigVariables.createTable %}
+                {{ stage('Drop Current ' + currentMatType + ' - ' + currentState.node.name, true, "sql", "drop") }}
+                DROP {{ drop_materialization(currentMatType) }} {{ nsNodeVariables.curObjectNameFullPath }}
+                {%- set nsNodeVariables.metaDataChanged = true %}
+            {%- endif %}
+
+            {# CreateSQL for Table #}
+            {{ stage('Create Work Table', true, "sql", "create") }}
+            CREATE OR REPLACE TABLE {{ nsNodeVariables.desObjectNameFullPath }}
+            (
+                {%- for col in columns %}
+                    `{{ col.name }}` {{ col.dataType }}
+                    {%- if col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- endif %}
+                    {%- if col.nullable == false or col.name in nsConfigVariables.primaryKeyColumns %} NOT NULL {%- endif %}
+                    {%- if col.description | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}' {%- endif %}
+                    {%- if not loop.last or nsConfigVariables.primaryKey | length > 0 -%}, {%- endif %}
+                {%- endfor %}
+                {%- if nsConfigVariables.primaryKey | length > 0 %}
+                    {{ nsConfigVariables.primaryKey }}
+                {%- endif %}
+            )
+            {{ nsConfigVariables.partitionBy }}
+            {{ nsConfigVariables.clusterBy }}
+            {{ nsConfigVariables.options }}
+
+            {# Unity Catalog tags are not part of CREATE TABLE: set them after it #}
+            {{ alter_tags_sql('TABLE', nsNodeVariables.desObjectNameFullPath, none, config.tag, true) }}
+
+        {%- elif currentState is defined and currentState != desiredState and currentMatType == desiredMatType %}
+
+            {# NOT NULL cannot be applied to a column added to an existing Databricks table: warn only #}
+            {{ alter_column_warnings_sql() }}
+
+            {# Every alter runs on the clone (nsNodeVariables.alterObjectNameFullPath) #}
+            {%- set alterSql %}
+
+                {# Alter Column: data type, nullability, comment, default (old column names) #}
+                {{ alter_modify_columns_sql() }}
+
+                {# Add Column (default set after the add; existing rows are not backfilled) #}
+                {{ alter_add_columns_sql() }}
+
+                {# Rename Column (matched by @id) #}
+                {{ alter_rename_columns_sql() }}
+
+                {# Delete Column #}
+                {{ alter_drop_columns_sql() }}
+
+            {%- endset %}
+
+            {# Clone Table -> alters -> Replace Table using Clone (clone deep-cloned back over the table) #}
+            {{ alter_clone_swap_sql(alterSql) }}
+
+            {# Table options on the table: comment, clustering, primary key, tags (all tags re-set after Replace Table using Clone) #}
+            {{ alter_table_options_sql() }}
+
+            {# Delete Table (the clone): last stage, once the table is replaced and its options are set #}
+            {{ alter_delete_clone_sql() }}
+
+            {# Nothing above altered the table: record a metadata-only change #}
+            {{ alter_metadata_sql() }}
+        {%- endif %}
     {%- endif %}
 
-{%- elif currentState is defined and currentState %}
+{%- elif currentState is defined and desiredState is not defined %}
 
     {# Node deleted: drop the current object #}
     {{ object_drop_sql() }}
