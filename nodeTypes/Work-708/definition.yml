@@ -17,6 +17,43 @@ metadata:
     annotations:
         node:
 
+        - name: partitionBy
+          description: |-
+            • Partitions the target table by the given column(s), written into 𝗣𝗔𝗥𝗧𝗜𝗧𝗜𝗢𝗡𝗘𝗗 𝗕𝗬 as-is.
+            • Takes one or more column names, comma separated, e.g. "LOAD_DATE" or "REGION, LOAD_DATE".
+            • Databricks partitions by columns only — to partition by an expression, compute it as a column in the SELECT:
+              CAST(last_modified AS DATE) AS `LOAD_DATE`
+            • Can also be placed on a column instead of the node — use one or the other, not both.
+            • Cannot be combined with @clusterKey (liquid clustering).
+            • ⚠️ On redeployment, a partitioning change recreates the table and reloads its rows from a clone.
+            • Ignored on views.
+          isRequired: false
+          parameters:
+            - name: columns
+              type: string
+              description: • Comma-separated column names.
+              isRequired: true
+              example: LOAD_DATE
+
+        - name: tag
+          description: |-
+            • Applies a Unity Catalog tag to this table or view (ALTER ... SET TAGS) after it is created.
+            • Repeat the annotation to apply multiple tags; a tag key can only be used once per table or view.
+            • Applies to views as well as tables.
+          allowsMultiple: true
+          parameters:
+            - name: tagName
+              type: string
+              description: • Tag key.
+              isRequired: true
+              example: cost_center
+
+            - name: tagValue
+              type: string
+              description: • Tag value.
+              isRequired: true
+              example: finance
+
         - name: writeMode
           description: >-
             Controls how data is written to the target table. 
@@ -104,6 +141,47 @@ metadata:
             example: 'SELECT 1'
 
         column:
+
+        - name: primaryKey
+          description: |-
+            • Marks this column as part of the table's PRIMARY KEY constraint, at the given position
+              (lowest first), e.g. primaryKey(1).
+            • Mark every key column to build a composite key, e.g. primaryKey(1) on one column and primaryKey(2) on another.
+            • Presence enables the key — remove the annotation to drop the column from it.
+            • Key columns are created NOT NULL automatically (Databricks requires it).
+            • 𝗡𝗼𝘁 𝗲𝗻𝗳𝗼𝗿𝗰𝗲𝗱 — Databricks primary keys are informational (Unity Catalog only); pair with uniqueness / not_null to test it.
+            • Ignored on views.
+          isRequired: false
+          parameters:
+            - name: position
+              type: number
+              isRequired: true
+              example: 1
+
+        - name: clusterKey
+          description: |-
+            • Marks this column as part of the table's liquid clustering key (𝗖𝗟𝗨𝗦𝗧𝗘𝗥 𝗕𝗬), at the given position
+              (lowest first), e.g. clusterKey(1).
+            • Databricks allows at most 4 clustering columns.
+            • Cannot be combined with @partitionBy — Databricks rejects a table that is both partitioned and clustered.
+            • On redeployment, clustering changes are applied in place (ALTER TABLE ... CLUSTER BY); existing data is reclustered by OPTIMIZE.
+            • Ignored on views.
+          parameters:
+            - name: position
+              type: number
+              isRequired: true
+              example: 1
+
+        - name: partitionBy
+          description: |-
+            • Adds this column to the table's 𝗣𝗔𝗥𝗧𝗜𝗧𝗜𝗢𝗡𝗘𝗗 𝗕𝗬 list.
+            • Takes no parameters — write a bare @partitionBy.
+            • Can be placed on more than one column; columns are partitioned in the order they appear.
+            • Use either this or the node-level @partitionBy, not both.
+            • Cannot be combined with @clusterKey.
+            • ⚠️ On redeployment, a partitioning change recreates the table and reloads its rows from a clone.
+            • Ignored on views.
+          isRequired: false
 
         - name: inHash
           description: >-

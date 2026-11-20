@@ -27,7 +27,7 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 
     {%- else %}
 
-        {# Validate the Dimension's annotations (hard fail: CREATE does not fail a test stage on row count) #}
+        {# Validate the Dimension annotations (hard fail: CREATE does not fail a test stage on row count) #}
         {{ validate_dimension_requirements(true) }}
 
         {# Validate: partition on the node or on columns, not combined with clustering, at most 4 cluster columns #}
