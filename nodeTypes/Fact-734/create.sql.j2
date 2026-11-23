@@ -20,23 +20,20 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
     {# Validate: the materialization type must be table or view #}
     {{ validate_materialization_type() }}
 
-    {# Validate: the same tag key applied twice to the node, or a @tag on a column, is not allowed #}
+    {# Validate: the same tag key applied twice to the node is only a warning (the last value is applied) #}
     {{ tag_check_duplicates() }}
-
-    {# Validate: @tableExpiration must be a date / datetime (a number of days stops the create; an expression only warns) #}
-    {{ validate_table_expiration() }}
 
     {%- if desiredMatType == 'view' %}
 
         {# Drop the current object if it was another type, or the view was renamed/moved #}
         {{ object_drop_sql() }}
 
-        {# Did the view definition change (columns, column descriptions, SELECT)? Render it without OPTIONS for both states and compare #}
+        {# Did the view definition change (columns, column comments, view comment, SELECT)? Render it for both states and compare #}
         {%- set viewDefinitionChanged = currentState is not defined
                 or (currentState != desiredState
-                    and view_definition_sql(currentState, false) != view_definition_sql(desiredState, false)) %}
+                    and view_definition_sql(currentState) != view_definition_sql(desiredState)) %}
 
-        {# Which view OPTIONS changed (expiration, tags, description)? Only those go into the ALTER #}
+        {# Which view tags changed? Only those are set / unset #}
         {%- set viewOptionsAlter = view_options_alter_sql(currentState, desiredState) | trim
                 if (currentState is defined and currentState != desiredState) else '' %}
 
@@ -49,16 +46,17 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
             CREATE OR REPLACE VIEW {{ nsNodeVariables.desObjectNameFullPath }}
             {{ view_definition_sql(desiredState) }}
 
+            {# Unity Catalog tags are not part of CREATE VIEW: set them after it #}
+            {{ alter_tags_sql('VIEW', nsNodeVariables.desObjectNameFullPath, none, config.tag, true) }}
+
         {%- elif viewOptionsAlter | length > 0 %}
 
-            {# Definition unchanged, options changed: one ALTER with only the changed options (a removed one is reset to NULL, tags to []) #}
-            {{ stage('Edit View Options') }}
-            ALTER VIEW {{ nsNodeVariables.desObjectNameFullPath }}
-            SET {{ viewOptionsAlter }}
+            {# Definition unchanged, tags changed: Unset Tags / Set Tags with only the changed keys #}
+            {{ viewOptionsAlter }}
 
         {%- elif currentState != desiredState %}
 
-            {# Definition and options unchanged (e.g. tests or run settings): record a metadata-only change #}
+            {# Definition and tags unchanged (e.g. tests or run settings): record a metadata-only change #}
             {{ alter_metadata_sql() }}
 
         {%- endif %}
@@ -67,25 +65,28 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 
         {# Validate the Fact's annotations (hard fail: CREATE does not fail a test stage on row count) #}
         {{ validate_fact_requirements(true) }}
-        {# Validate: one partition (node or column @partitionBy), partition expiration only on a time partition, at most 4 plain cluster columns #}
+
+        {# Validate: partition on the node or on columns (not both), not combined with clustering, at most 4 cluster columns #}
         {{ validate_partition_cluster() }}
 
         {# Drop the current object if it was another type #}
         {{ object_drop_sql() }}
 
-        {%- set nsConfigVariables = namespace(options = "", partitionBy = "", clusterBy = "", primaryKey = "", createTable = false) %}
+        {%- set nsConfigVariables = namespace(options = "", partitionBy = "", clusterBy = "", primaryKey = "", primaryKeyColumns = [], createTable = false) %}
 
         {# Initialise the variables necessary for create of table #}
         {%- set nsConfigVariables.partitionBy = get_partition_by_sql(config, columns) | trim %}
         {%- set nsConfigVariables.clusterBy = get_clusterby_sql(columns) | trim %}
         {%- set nsConfigVariables.primaryKey = get_primary_key_sql(columns) | trim %}
+        {%- set pkColumns = namespace(items=[]) %}
+        {{- get_primary_key_columns(columns, pkColumns) }}
+        {%- set nsConfigVariables.primaryKeyColumns = pkColumns.items %}
         {%- set nsConfigVariables.options = get_object_options_sql(config, node.description, false, columns) | trim %}
 
-        {# BigQuery cannot alter these on an existing table: a dataset move, or a partition / cluster change recreates it #}
+        {# Databricks cannot alter these on an existing table: a partitioning change recreates it.
+           (A clustering change is altered in place; a move to another catalog / schema goes through the clone.) #}
         {%- if currentState is defined and currentMatType == desiredMatType
-                and (nsNodeVariables.currentProjectDataset != nsNodeVariables.desiredProjectDataset
-                or (get_partition_by_sql(currentState.config, currentState.columns) | trim | lower) != (nsConfigVariables.partitionBy | lower)
-                or (get_clusterby_sql(currentState.columns) | trim | lower) != (nsConfigVariables.clusterBy | lower)) %}
+                and ((get_partition_by_sql(currentState.config, currentState.columns) | trim | lower) != (nsConfigVariables.partitionBy | lower)) %}
             {%- set nsConfigVariables.createTable = true %}
         {%- endif %}
 
@@ -105,8 +106,8 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
                 {%- for col in columns %}
                     `{{ col.name }}` {{ col.dataType }}
                     {%- if col.defaultValue %} DEFAULT {{ col.defaultValue }} {%- endif %}
-                    {%- if col.nullable == false %} NOT NULL {%- endif %}
-                    {%- if col.description | trim | length > 0 %} OPTIONS(description = '{{ col.description | escape }}') {%- endif %}
+                    {%- if col.nullable == false or col.name in nsConfigVariables.primaryKeyColumns %} NOT NULL {%- endif %}
+                    {%- if col.description | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}' {%- endif %}
                     {%- if not loop.last or nsConfigVariables.primaryKey | length > 0 -%}, {%- endif %}
                 {%- endfor %}
                 {%- if nsConfigVariables.primaryKey | length > 0 %}
@@ -117,15 +118,19 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
             {{ nsConfigVariables.clusterBy }}
             {{ nsConfigVariables.options }}
 
+            {# Unity Catalog tags are not part of CREATE TABLE: set them after it - node-level @tag ("Set Tags"), then column-level @tag ("Set Tags: `col`") #}
+            {{ alter_tags_sql('TABLE', nsNodeVariables.desObjectNameFullPath, none, config.tag, true) }}
+            {{ set_column_tags_sql(nsNodeVariables.desObjectNameFullPath) }}
+
         {%- elif currentState is defined and currentState != desiredState and currentMatType == desiredMatType %}
 
-            {# NOT NULL cannot be applied to an existing BigQuery table: warn only #}
+            {# NOT NULL cannot be applied to a column added to an existing Databricks table: warn only #}
             {{ alter_column_warnings_sql() }}
 
             {# Every alter runs on the clone (nsNodeVariables.alterObjectNameFullPath) #}
             {%- set alterSql %}
 
-                {# Alter Column: data type, nullability, description, default (old column names) #}
+                {# Alter Column: data type, nullability, comment, default (old column names) #}
                 {{ alter_modify_columns_sql() }}
 
                 {# Add Column (default set after the add; existing rows are not backfilled) #}
@@ -139,13 +144,13 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 
             {%- endset %}
 
-            {# Clone Table -> alters -> Replace Table (clone copied back over the table) #}
+            {# Clone Table -> alters -> Replace Table using Clone (clone deep-cloned back over the table) #}
             {{ alter_clone_swap_sql(alterSql) }}
 
-            {# Edit Table Options on the table: changed options, or re-applied after Replace Table (COPY drops the expiration) #}
+            {# Table options on the table: comment, clustering, primary key, tags (all tags re-set after Replace Table using Clone) #}
             {{ alter_table_options_sql() }}
 
-            {# Delete Clone: last stage, once the table is replaced and its options are set #}
+            {# Delete Table (the clone): last stage, once the table is replaced and its options are set #}
             {{ alter_delete_clone_sql() }}
 
             {# Nothing above altered the table: record a metadata-only change #}

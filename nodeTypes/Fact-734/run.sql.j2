@@ -7,10 +7,10 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {# == Node Type Name           : Fact  == #}
 {# == Node Type Description    : This node loads data into fact table using options distinct and multi-source cte if specified == #}
 
-{# == Validate: the materialization type must be table, transient table or view == #}
+{# == Validate: the materialization type must be table or view == #}
 {{ validate_materialization_type() }}
 
-{# == Materialization type from the node, normalised (case and spaces): table / transient table / view == #}
+{# == Materialization type from the node, normalised (case and spaces): table / view == #}
 {%- set materializationType = get_materialization_type(node.materializationType) %}
 
 {# == To run data quality tests before data insertion == #}
@@ -71,15 +71,24 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
     {#== Pre-SQL ==#}
     {{ run_pre_post_sql('Pre') }}
 
-    {# == Determine write mode: truncateInsert or append(default) == #}
+    {# == Determine write mode: truncateInsert or append (default), matched case-insensitively == #}
     {%- if config.writeMode is defined and config.writeMode.parameters is defined and config.writeMode.parameters | length > 0 %}
-        {%- set writeMode = config.writeMode.parameters[0] | trim %}
+        {%- set writeModeRaw = config.writeMode.parameters[0] | string | trim %}
     {%- else %}
-        {%- set writeMode = 'append' %}
+        {%- set writeModeRaw = 'append' %}
+    {%- endif %}
+    {%- set writeMode = writeModeRaw | lower %}
+
+    {# == An unrecognised write mode stops the load instead of silently truncating the table == #}
+    {%- if writeMode not in ('truncateinsert', 'append') %}
+        {%- set reason = '@writeMode("' ~ writeModeRaw ~ '") is not a recognised write mode. Use "truncateInsert" or "append".' %}
+        {{ test_stage('Invalid configuration: writeMode', false) }}
+        -- {{ reason }}
+        {{ fail_sql(true, reason) }}
     {%- endif %}
 
-	{# == Truncate data before data insertion  == #}
-    {%- if writeMode | lower != "append" -%}
+    {# == truncateInsert: empty the table before loading (TRUNCATE keeps the table, its keys, clustering / partitioning and tags) == #}
+    {%- if writeMode == 'truncateinsert' -%}
         {{ stage('Truncate ' + materializationType) }}
         TRUNCATE TABLE {{ ref_no_link(node.location.name, node.name) }}
     {%- endif %}
@@ -287,7 +296,7 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
 {%- elif materializationType == 'view' %}
 	{{ stage('Load Skipped for View') }}
 	-- The node {{node.name}} is materialized as View. Therefore, a Load operation is not supported.
-	SELECT 1 FROM UNNEST([1]) AS INFO_MESSAGE WHERE FALSE
+	SELECT 1 AS INFO_MESSAGE WHERE FALSE
 {%- endif %}
 
 {# == To run data quality tests after data insertion == #}
