@@ -187,8 +187,8 @@ metadata:
         - name: tag
           description: |-
             • Applies a Unity Catalog tag to this column, e.g. @tag("pii", "email").
-            • Created with the table as `<column>` <type> WITH TAGS ('pii' = 'email'); on redeployment a changed tag is
-              set with ALTER TABLE ... ALTER COLUMN ... SET TAGS, and a removed one unset with UNSET TAGS.
+            • Set after the table is created, one "Set Tags: `<column>`" stage per tagged column
+              (ALTER TABLE ... ALTER COLUMN ... SET TAGS); on redeployment a changed tag is set again, and a removed one unset with UNSET TAGS.
             • Repeat the annotation to apply multiple tags; a tag key can only be used once per column.
             • Ignored on views (a warning is raised) — use a node-level @tag to tag the view.
           allowsMultiple: true

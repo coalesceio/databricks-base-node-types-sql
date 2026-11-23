@@ -112,9 +112,6 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
                     {%- endif %}
                     {%- if col.nullable == false or col.name in nsConfigVariables.primaryKeyColumns %} NOT NULL {%- endif %}
                     {%- if col.description | trim | length > 0 %} COMMENT '{{ sql_string(col.description | trim) }}' {%- endif %}
-                    {#- Column-level @tag: Unity Catalog column tags #}
-                    {%- set columnTags = get_column_tags_sql(col) | trim %}
-                    {%- if columnTags | length > 0 %} {{ columnTags }} {%- endif %}
                     {%- if not loop.last or nsConfigVariables.primaryKey | length > 0 -%}, {%- endif %}
                 {%- endfor %}
                 {%- if nsConfigVariables.primaryKey | length > 0 %}
@@ -125,8 +122,9 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
             {{ nsConfigVariables.clusterBy }}
             {{ nsConfigVariables.options }}
 
-            {# Node-level Unity Catalog tags are not part of CREATE TABLE: set them after it (column tags are set above with WITH TAGS) #}
+            {# Unity Catalog tags are not part of CREATE TABLE: set them after it - node-level @tag ("Set Tags"), then column-level @tag ("Set Tags: `col`") #}
             {{ alter_tags_sql('TABLE', nsNodeVariables.desObjectNameFullPath, none, config.tag, true) }}
+            {{ set_column_tags_sql(nsNodeVariables.desObjectNameFullPath) }}
 
         {%- elif currentState is defined and currentState != desiredState and currentMatType == desiredMatType %}
 
