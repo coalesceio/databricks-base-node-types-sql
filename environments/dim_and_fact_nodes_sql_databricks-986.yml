@@ -3,10 +3,10 @@ id: "986"
 mappingDefinitions:
   SRC:
     database: coalesce
-    schema: sample_data
+    schema: sample_source
   SRC2:
     database: coalesce
-    schema: sample_source
+    schema: sample_data
   TARGET:
     database: coalesce
     schema: target_sql
