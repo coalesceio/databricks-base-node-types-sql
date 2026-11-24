@@ -5,7 +5,7 @@
 @preSQL("DELETE FROM {{ this }} WHERE `LOAD_DATE` < DATE_SUB(CURRENT_DATE(), 30)")
 @postSQL("SELECT COUNT(*) AS `ROW_COUNT` FROM {{ this }}")
 SELECT
-    `client_id`    AS `client_id`   @id("cc2e44") @not_null,
+    `client_id`    AS `client_id`   @id("cc2e44") @empty,
     `client_name`  AS `client_name` @id("f267dc"),
     `email`        AS `email`       @id("eeb858"),
     `region`       AS `region`      @id("cc298e"),
