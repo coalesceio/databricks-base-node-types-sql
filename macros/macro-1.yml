@@ -893,8 +893,8 @@ macroString: |-
 
   {#===========================================================================
     validate_partition_cluster(hardFail): failing "Invalid configuration: partitionBy / clusterKey"
-    checks — partitioning on the node or on columns (not both), a column-level @partitionBy takes no
-    parameters, partitioning and liquid clustering can not be combined, at most 4 clustering columns.
+    checks — partitioning is set on columns only (no node-level @partitionBy), a column-level @partitionBy
+    takes no parameters, partitioning and liquid clustering can not be combined, at most 4 clustering columns.
     Call in the table branch of create, before any DDL.
   ===========================================================================#}
   {%- macro validate_partition_cluster(hardFail=true) -%}
@@ -902,8 +902,8 @@ macroString: |-
       {%- set partColumns = columns | selectattr('partitionBy', 'defined') | selectattr('partitionBy') | list -%}
       {%- set clusterColumns = columns | selectattr('clusterKey', 'defined') | selectattr('clusterKey') | map(attribute='name') | list -%}
 
-      {%- if nodePart and partColumns | length > 0 %}
-          {%- set reason = 'Partitioning is set both on the node (@partitionBy) and on column(s) ' ~ (partColumns | map(attribute='name') | join(', ')) ~ '. Use one or the other.' %}
+      {%- if nodePart %}
+          {%- set reason = 'Node-level @partitionBy is not supported. Put a bare @partitionBy on each partition column instead.' %}
           {{ test_stage('Invalid configuration: partitionBy', false) }}
           -- {{ reason }}
           {{ fail_sql(hardFail, reason) }}
@@ -914,13 +914,13 @@ macroString: |-
           {%- set colPart.withParams = colPart.withParams + [col.name] -%}
       {%- endfor -%}
       {%- if colPart.withParams | length > 0 %}
-          {%- set reason = 'Column-level @partitionBy takes no parameters (found on ' ~ (colPart.withParams | join(', ')) ~ '). Use a bare @partitionBy, or list the columns in the node-level @partitionBy("col1, col2").' %}
+          {%- set reason = 'Column-level @partitionBy takes no parameters (found on ' ~ (colPart.withParams | join(', ')) ~ '). Use a bare @partitionBy on each partition column.' %}
           {{ test_stage('Invalid configuration: partitionBy', false) }}
           -- {{ reason }}
           {{ fail_sql(hardFail, reason) }}
       {%- endif -%}
 
-      {%- if (nodePart or partColumns | length > 0) and clusterColumns | length > 0 %}
+      {%- if partColumns | length > 0 and clusterColumns | length > 0 %}
           {%- set reason = 'Partitioning (@partitionBy) and liquid clustering (@clusterKey on ' ~ (clusterColumns | join(', ')) ~ ') can not be combined on a Databricks table. Keep one of them.' %}
           {{ test_stage('Invalid configuration: clusterKey', false) }}
           -- {{ reason }}
@@ -961,22 +961,16 @@ macroString: |-
   get_partition_by_sql(nodeConfig, nodeColumns)
 
   Description:
-      Builds the PARTITIONED BY clause from the node-level @partitionBy("col1, col2") annotation, or the
-      column-level @partitionBy flags (in column order). Databricks partitions by columns only.
+      Builds the PARTITIONED BY clause from the column-level @partitionBy flags (in column order).
+      Partitioning is set on columns only. Databricks partitions by columns only.
 
   Examples:
-      @partitionBy("REGION, LOAD_DATE") on the node     -> PARTITIONED BY (`REGION`, `LOAD_DATE`)
       @partitionBy on column LOAD_DATE                  -> PARTITIONED BY (`LOAD_DATE`)
+      @partitionBy on columns REGION and LOAD_DATE      -> PARTITIONED BY (`REGION`, `LOAD_DATE`)
       No annotation                                     -> empty
   ====================================================================================================#}
   {%- macro get_partition_by_sql(nodeConfig, nodeColumns=[]) -%}
       {%- set part = namespace(items=[]) -%}
-      {%- set partEntry = nodeConfig.partitionBy if (nodeConfig and nodeConfig.partitionBy is defined) else none -%}
-      {%- if partEntry is mapping and partEntry.parameters is defined and partEntry.parameters | length > 0 -%}
-          {%- for p in (partEntry.parameters[0] | string).split(',') if p | trim | length > 0 -%}
-              {%- set part.items = part.items + ['`' ~ (p | trim | replace('`', '')) ~ '`'] -%}
-          {%- endfor -%}
-      {%- endif -%}
       {%- for col in nodeColumns | default([]) if col.partitionBy is defined and col.partitionBy -%}
           {%- set part.items = part.items + ['`' ~ col.name ~ '`'] -%}
       {%- endfor -%}

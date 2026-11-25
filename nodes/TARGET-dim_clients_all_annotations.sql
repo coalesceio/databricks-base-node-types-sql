@@ -2,7 +2,6 @@
 @nodeType("733")
 @description("Dimension using every node and column annotation once")
 @materializationType("table")
-@partitionBy("region")
 @tag("cost_center", "finance")
 @writeMode("truncateInsert")
 @mergeStrategy("changeTracking")
