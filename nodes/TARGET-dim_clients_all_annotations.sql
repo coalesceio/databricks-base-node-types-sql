@@ -7,7 +7,7 @@
 @writeMode("truncateInsert")
 @mergeStrategy("changeTracking")
 @zeroKey("0", "'UNKNOWN'", "1900-01-01 00:00:00", false)
-@disableTests(false)
+
 @tests("SELECT `client_id` FROM {{ this }} WHERE `SYSTEM_CURRENT_FLAG` = 'Y' GROUP BY `client_id` HAVING COUNT(*) > 1", true, "After")
 @preSQL("SELECT 1")
 @postSQL("SELECT 1")
