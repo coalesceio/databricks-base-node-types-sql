@@ -1,0 +1,11 @@
+fileVersion: 1
+id: "1"
+name: clients_scd_pipeline
+steps:
+  - 047be13f-f786-40ce-8955-1e3af2784341
+  - 078d840e-7bdc-42f4-b7ec-bf385a9d2f34
+  - 42d16dff-790f-4f88-b278-48752ec86cf7
+  - 563235c0-75b4-46f5-ab47-c641dc534a01
+  - b4248100-bb3b-4c78-b782-6478d5ec4cc9
+  - cddfdb7c-9ccf-4f32-8a3a-b3d210720a01
+type: Subgraph
