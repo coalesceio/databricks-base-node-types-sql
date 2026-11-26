@@ -1,11 +1,11 @@
 fileVersion: 1
-id: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
-name: clients
+id: 25543b51-2314-42f2-8fb0-b6b7e12c6a01
+name: nation
 operation:
   database: ""
   deployEnabled: true
   description: ""
-  locationName: SRC
+  locationName: SRC2
   metadata:
     columns:
       - acceptedValues:
@@ -13,13 +13,13 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 00b89a01-46db-439f-8be4-6e71cdcc84c9
-          stepCounter: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
+          columnCounter: 3b4df962-467e-4a31-af6a-dcd8d1adb0f4
+          stepCounter: 25543b51-2314-42f2-8fb0-b6b7e12c6a01
         config: {}
-        dataType: INT
+        dataType: LONG
         defaultValue: ""
         description: ""
-        name: client_id
+        name: n_nationkey
         nullable: true
         sourceColumnReferences:
           - columnReferences: []
@@ -30,13 +30,13 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 0bc336ea-82bc-4f3a-a397-8fdb4715777a
-          stepCounter: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
+          columnCounter: 8e15e471-b20d-4a88-a41a-5f1a9552815d
+          stepCounter: 25543b51-2314-42f2-8fb0-b6b7e12c6a01
         config: {}
         dataType: STRING
         defaultValue: ""
         description: ""
-        name: client_name
+        name: n_name
         nullable: true
         sourceColumnReferences:
           - columnReferences: []
@@ -47,53 +47,36 @@ operation:
           values: []
         appliedColumnTests: {}
         columnReference:
-          columnCounter: 79ed8559-7cc6-4a1f-b603-df79770ef7e2
-          stepCounter: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
+          columnCounter: 704de3c5-dba1-4462-aac0-88139585b386
+          stepCounter: 25543b51-2314-42f2-8fb0-b6b7e12c6a01
+        config: {}
+        dataType: LONG
+        defaultValue: ""
+        description: ""
+        name: n_regionkey
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: a24228bd-72d3-4168-86d8-f8ecd67b8904
+          stepCounter: 25543b51-2314-42f2-8fb0-b6b7e12c6a01
         config: {}
         dataType: STRING
         defaultValue: ""
         description: ""
-        name: email
+        name: n_comment
         nullable: true
         sourceColumnReferences:
           - columnReferences: []
             transform: ""
         transform: ""
-      - acceptedValues:
-          strictMatch: true
-          values: []
-        appliedColumnTests: {}
-        columnReference:
-          columnCounter: b5265cbd-0e91-4afa-a8b9-019b01f1baf8
-          stepCounter: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
-        config: {}
-        dataType: STRING
-        defaultValue: ""
-        description: ""
-        name: region
-        nullable: true
-        sourceColumnReferences:
-          - columnReferences: []
-            transform: ""
-        transform: ""
-      - acceptedValues:
-          strictMatch: true
-          values: []
-        appliedColumnTests: {}
-        columnReference:
-          columnCounter: 8f3629fa-1753-481f-97a2-40205a28ba0b
-          stepCounter: 60a3b454-dbf0-418c-8fbc-3a0d4b85f02f
-        config: {}
-        dataType: TIMESTAMP
-        defaultValue: ""
-        description: ""
-        name: update_time
-        nullable: true
-        sourceColumnReferences:
-          - columnReferences: []
-            transform: ""
-        transform: ""
-  name: clients
+  name: nation
   schema: ""
   sqlType: Source
   type: sourceInput
