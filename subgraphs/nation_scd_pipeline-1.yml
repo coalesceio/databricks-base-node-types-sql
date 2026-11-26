@@ -1,6 +1,6 @@
 fileVersion: 1
 id: "1"
-name: clients_scd_pipeline
+name: nation_scd_pipeline
 steps:
   - 047be13f-f786-40ce-8955-1e3af2784341
   - 078d840e-7bdc-42f4-b7ec-bf385a9d2f34
