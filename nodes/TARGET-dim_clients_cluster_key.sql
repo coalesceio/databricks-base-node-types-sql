@@ -4,7 +4,7 @@
 @mergeStrategy("changeTracking")
 SELECT
     CAST(0 AS BIGINT)                    AS `dim_clients_cluster_key_KEY` @id("0e735c") @isSurrogateKey,
-    `client_id`                          AS `client_id`                   @id("df06ea") @isBusinessKey @clusterKey(2),
+    `client_id`                          AS `client_id`                   @id("df06ea") @isBusinessKey,
     `client_name`                        AS `client_name`                 @id("a78730"),
     `email`                              AS `email`                       @id("a08064"),
     `region`                             AS `region`                      @id("9300d5") @clusterKey(1),

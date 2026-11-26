@@ -5,7 +5,7 @@
 SELECT
     CAST(0 AS BIGINT)                    AS `dim_clients_ct_scd1_KEY` @id("d172bf") @isSurrogateKey,
     `client_id`                          AS `client_id`               @id("d8d6be") @isBusinessKey,
-    `client_name`                        AS `client_name`             @id("340b3f"),
+    `client_name`                        AS `client_name`             @id("340b3f") @isChangeTracking,
     `email`                              AS `email`                   @id("c20524"),
     `region`                             AS `region`                  @id("5174b8"),
     `update_time`                        AS `update_time`             @id("c6326e"),

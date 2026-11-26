@@ -2,7 +2,7 @@
 @nodeType("733")
 @description("writeMode append")
 @mergeStrategy("changeTracking")
-@writeMode("append")
+@writeMode("truncateInsert")
 SELECT
     CAST(0 AS BIGINT)                    AS `dim_clients_write_mode_KEY` @id("16fc5c") @isSurrogateKey,
     `client_id`                          AS `client_id`                  @id("a6c786") @isBusinessKey,

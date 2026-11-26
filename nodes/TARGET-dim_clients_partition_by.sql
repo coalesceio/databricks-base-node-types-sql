@@ -7,7 +7,7 @@ SELECT
     `client_id`                          AS `client_id`                    @id("dfc570") @isBusinessKey,
     `client_name`                        AS `client_name`                  @id("a1157a"),
     `email`                              AS `email`                        @id("8935ad"),
-    `region`                             AS `region`                       @id("f73782") @partitionBy,
+    `region`                             AS `region`                       @id("f73782"),
     `update_time`                        AS `update_time`                  @id("119746"),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_CREATE_DATE`           @id("ac7d99") @isSystemCreateDate,
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_UPDATE_DATE`           @id("350b1a") @isSystemUpdateDate

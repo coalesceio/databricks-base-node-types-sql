@@ -2,9 +2,6 @@
 @nodeType("733")
 @description("preSQL / postSQL - two pre-load statements and one post-load statement")
 @mergeStrategy("changeTracking")
-@preSQL("SELECT 1")
-@preSQL("SELECT CURRENT_TIMESTAMP() AS `LOAD_START`")
-@postSQL("SELECT COUNT(*) AS `ROW_COUNT` FROM {{ this }}")
 SELECT
     CAST(0 AS BIGINT)                    AS `dim_clients_pre_post_sql_KEY` @id("7c69ce") @isSurrogateKey,
     `client_id`                          AS `client_id`                    @id("c9df68") @isBusinessKey,

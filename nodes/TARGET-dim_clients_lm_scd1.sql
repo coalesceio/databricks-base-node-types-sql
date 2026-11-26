@@ -8,7 +8,7 @@ SELECT
     `client_name`                        AS `client_name`             @id("32c4ea"),
     `email`                              AS `email`                   @id("5819a3"),
     `region`                             AS `region`                  @id("42d682"),
-    `update_time`                        AS `update_time`             @id("2cc745") @lastModifiedTracking(1),
+    `update_time`                        AS `update_time`             @id("2cc745") @lastModifiedTracking(2),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_CREATE_DATE`      @id("341fea") @isSystemCreateDate,
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_UPDATE_DATE`      @id("dd9736") @isSystemUpdateDate
 FROM {{ ref('TARGET', 'wrk_clients_base') }} `wrk_clients_base`
