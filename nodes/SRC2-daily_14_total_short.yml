@@ -1,0 +1,50 @@
+fileVersion: 1
+id: 15a53006-2d14-4926-a0b7-b0cd12b4558f
+name: daily_14_total_short
+operation:
+  database: ""
+  deployEnabled: true
+  description: ""
+  locationName: SRC2
+  metadata:
+    columns:
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 2ee2ce3a-5701-43f7-97d5-6a69555ee3e3
+          stepCounter: 15a53006-2d14-4926-a0b7-b0cd12b4558f
+        config: {}
+        dataType: TIMESTAMP
+        defaultValue: ""
+        description: ""
+        name: t
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+      - acceptedValues:
+          strictMatch: true
+          values: []
+        appliedColumnTests: {}
+        columnReference:
+          columnCounter: 36ab4d6b-c5ca-4d85-833f-543c2ae311f6
+          stepCounter: 15a53006-2d14-4926-a0b7-b0cd12b4558f
+        config: {}
+        dataType: VARIANT
+        defaultValue: ""
+        description: ""
+        name: v
+        nullable: true
+        sourceColumnReferences:
+          - columnReferences: []
+            transform: ""
+        transform: ""
+  name: daily_14_total_short
+  schema: ""
+  sqlType: Source
+  type: sourceInput
+  version: 1
+type: Node
