@@ -1,0 +1,6 @@
+excludeSelector: ""
+fileVersion: 1
+id: "120"
+includeSelector: "{ location: \"TARGET\" name: \"wrk_nation_scd\" } OR { location: \"TARGET\" name: \"dim_nation_scd1\" } OR { location: \"TARGET\" name: \"dim_nation_scd2\" } OR { location: \"TARGET\" name: \"dim_nation_lm_scd1\" } OR { location: \"TARGET\" name: \"dim_nation_lm_scd2\" } OR { location: \"TARGET\" name: \"fct_customer_nation_scd\" }"
+name: nation_scd_pipeline_job
+type: Job
