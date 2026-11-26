@@ -10,8 +10,8 @@ WITH `LATEST_CLIENTS` AS (
 )
 SELECT
     `client_id`                                                       AS `client_id`   @id("ab32fc") @not_null @uniqueness,
-    COALESCE(NULLIF(TRIM(`client_name`), ''), 'UNKNOWN')              AS `client_name` @id("d041c2"),
-    COALESCE(NULLIF(TRIM(`email`), ''), 'UNKNOWN')                    AS `email`       @id("57034b"),
-    COALESCE(NULLIF(TRIM(`region`), ''), 'UNKNOWN')                   AS `region`      @id("3b075c"),
+    CAST(COALESCE(NULLIF(TRIM(`client_name`), ''), 'UNKNOWN') AS STRING)              AS `client_name` @id("d041c2"),
+    CAST(COALESCE(NULLIF(TRIM(`email`), ''), 'UNKNOWN') AS STRING)                    AS `email`       @id("57034b"),
+    CAST(COALESCE(NULLIF(TRIM(`region`), ''), 'UNKNOWN') AS STRING)                   AS `region`      @id("3b075c"),
     COALESCE(`update_time`, CAST('1900-01-01 00:00:00' AS TIMESTAMP)) AS `update_time` @id("1254ff") @not_null
 FROM `LATEST_CLIENTS` `clients`

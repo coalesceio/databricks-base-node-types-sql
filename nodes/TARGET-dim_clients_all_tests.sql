@@ -12,7 +12,7 @@ SELECT
     `email`                                              AS `email`                     @id("09efe9"),
     `region`                                             AS `region`                    @id("830781"),
     `update_time`                                        AS `update_time`               @id("61651a"),
-    CASE WHEN `region` = 'UNKNOWN' THEN 'N' ELSE 'Y' END AS `region_known`              @id("52e336") @accepted_values("'Y'") @accepted_values("'N'"),
+    CAST(CASE WHEN `region` = 'UNKNOWN' THEN 'N' ELSE 'Y' END AS STRING) AS `region_known`              @id("52e336") @accepted_values("'Y'") @accepted_values("'N'"),
     LENGTH(`client_name`)                                AS `name_length`               @id("7a297d") @min_value("1") @max_value("100000"),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP)                 AS `LOAD_TIMESTAMP`            @id("ea4fdf") @freshness(1, "DAY"),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP)                 AS `SYSTEM_CREATE_DATE`        @id("93b789") @isSystemCreateDate @relative_time("<=", "SYSTEM_UPDATE_DATE"),
