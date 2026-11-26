@@ -5,7 +5,6 @@
 @zeroKey("0", "'UNKNOWN'", "1900-01-01 00:00:00", false)
 @tag("cost_center", "finance")
 @tag("env", "dev")
-@tests("SELECT `client_id` FROM {{ this }} GROUP BY `client_id` HAVING COUNT(*) > 1", false, "After")
 SELECT
     CAST(0 AS BIGINT)                    AS `dim_clients_scd1_KEY` @id("f17c9d") @isSurrogateKey,
     `client_id`                          AS `client_id`            @id("dacbd6") @isBusinessKey @primaryKey(1) @not_null @uniqueness @description("Client business key"),

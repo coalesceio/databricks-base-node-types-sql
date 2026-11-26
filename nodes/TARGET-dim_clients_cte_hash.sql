@@ -12,7 +12,6 @@ SELECT
     `client_id`                                             AS `client_id`                @id("3f6b9e") @isBusinessKey @inHash("CLIENT_HASH", 1),
     `client_name`                                           AS `client_name`              @id("9e236f") @inHash("CLIENT_HASH", 2),
     `email`                                                 AS `email`                    @id("c7af88") @inHash("CLIENT_HASH", 3),
-    `region`                                                AS `region`                   @id("14d591"),
     `update_time`                                           AS `update_time`              @id("8c59eb"),
     CAST({{ get_hash('CLIENT_HASH', 'SHA256') }} AS STRING) AS `CLIENT_HASH`              @id("b37fdc"),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP)                    AS `SYSTEM_CREATE_DATE`       @id("cbd8a3") @isSystemCreateDate,

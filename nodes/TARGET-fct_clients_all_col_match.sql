@@ -1,6 +1,5 @@
 @id("6b9d5def-1dc5-4f8a-a78f-880dfdbebfcc")
 @nodeType("734")
-@description("Factless fact - allColumnMatch: insert a client/region pair only when it is not already present")
 @mergeStrategy("allColumnMatch")
 SELECT
     `client_id`                          AS `client_id`          @id("ca4915") @not_null,

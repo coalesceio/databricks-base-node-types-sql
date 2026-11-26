@@ -2,7 +2,6 @@
 @nodeType("734")
 @description("Fact - change tracking (SCD1) with primary key, clustering, node and column tags, tests")
 @mergeStrategy("changeTracking")
-@tag("domain", "sales")
 @tests("SELECT `client_id` FROM {{ this }} GROUP BY `client_id` HAVING COUNT(*) > 1", false, "After")
 SELECT
     `client_id`                          AS `client_id`          @id("251feb") @isBusinessKey @primaryKey(1) @not_null @uniqueness,
