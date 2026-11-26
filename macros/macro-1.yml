@@ -1102,10 +1102,14 @@ macroString: |-
     SECTION 6: Redeploy (advanced deploy: drop, alter on a clone, metadata)
 
     A table is recreated (drop + create) when what Databricks cannot alter changes: the
-    materialization type, the partitioning or the identity (surrogate key) column. Column
-    changes are applied to a clone: Clone Table -> alters -> Replace Table using Clone (the
-    clone is deep-cloned back over the table) -> table options (comment, clustering, primary key,
-    tags) -> Delete Table (the clone). Views are recreated when their definition changes.
+    materialization type, the partitioning or the identity (surrogate key) column. Every other
+    change on a redeploy goes through the clone flow: Clone Table -> column alters on the clone ->
+    Replace Table using Clone (the clone is deep-cloned back over the table) -> table options
+    (comment, clustering, primary key, node and column tags, all re-applied in full) -> Delete
+    Table (the clone). This covers column changes, a rename / move, and a change of the table
+    comment, @clusterKey, @primaryKey, node-level @tag or column-level @tag.
+    Tags are never part of CREATE: on the first deploy they are set with ALTER ... SET TAGS
+    right after the create. Views are recreated when their definition changes.
   ===========================================================================#}
 
   {#===========================================================================
@@ -1285,6 +1289,54 @@ macroString: |-
   {%- endmacro -%}
 
   {#===========================================================================
+    tags_differ(curTagList, desTagList): 'true' when the two @tag lists apply a different set of
+    key / value pairs (duplicate keys resolved the same way as alter_tags_sql); '' otherwise.
+  ===========================================================================#}
+  {%- macro tags_differ(curTagList, desTagList) -%}
+      {%- set cur = namespace(entries=[]) -%}
+      {{- get_unique_tags(curTagList, cur) -}}
+      {%- set des = namespace(entries=[]) -%}
+      {{- get_unique_tags(desTagList, des) -}}
+      {%- set a = namespace(items=[]) -%}
+      {%- for t in cur.entries -%}{%- set a.items = a.items + [t.key ~ '=' ~ t.value] -%}{%- endfor -%}
+      {%- set b = namespace(items=[]) -%}
+      {%- for t in des.entries -%}{%- set b.items = b.items + [t.key ~ '=' ~ t.value] -%}{%- endfor -%}
+      {%- if (a.items | sort) != (b.items | sort) -%}true{%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
+    table_options_changed(): 'true' when a table-level option differs between the current and the
+    desired state - the table comment, @clusterKey, @primaryKey, node-level @tag, or a column-level
+    @tag (columns matched by @id; a new column with tags counts too). '' otherwise. Used by
+    alter_clone_swap_sql() so these changes go through the clone flow like column changes.
+  ===========================================================================#}
+  {%- macro table_options_changed() -%}
+      {%- set chg = namespace(any=false) -%}
+      {%- if (currentState.node.description | default('', true) | trim) != (node.description | default('', true) | trim) -%}
+          {%- set chg.any = true -%}
+      {%- endif -%}
+      {%- if (get_clusterby_sql(currentState.columns) | trim | lower) != (get_clusterby_sql(columns) | trim | lower) -%}
+          {%- set chg.any = true -%}
+      {%- endif -%}
+      {%- if (get_primary_key_sql(currentState.columns, currentState.node.name) | trim | lower) != (get_primary_key_sql(columns, node.name) | trim | lower) -%}
+          {%- set chg.any = true -%}
+      {%- endif -%}
+      {%- if (tags_differ(currentState.config.tag, config.tag) | trim) == 'true' -%}
+          {%- set chg.any = true -%}
+      {%- endif -%}
+      {%- for desCol in columns if not chg.any -%}
+          {%- set idMatch = namespace(items=[]) -%}
+          {{- match_columns_by_id(currentState.columns, desCol.id, idMatch) -}}
+          {%- set curCol = idMatch.items | first if idMatch.items else none -%}
+          {%- set curColTags = curCol.tag if (curCol and curCol.tag is defined) else none -%}
+          {%- if (tags_differ(curColTags, desCol.tag if desCol.tag is defined else none) | trim) == 'true' -%}
+              {%- set chg.any = true -%}
+          {%- endif -%}
+      {%- endfor -%}
+      {%- if chg.any -%}true{%- endif -%}
+  {%- endmacro -%}
+
+  {#===========================================================================
     alter_clone_swap_sql(alterSql): wraps the alters in Clone Table -> alterSql -> Replace Table
     using Clone, the pattern the Databricks YAML node types use: the table is deep-cloned, the
     alters run on the clone, and the clone is deep-cloned back over the table (CREATE OR REPLACE
@@ -1293,7 +1345,9 @@ macroString: |-
     A changed primary key (or clustering) is dropped from the clone first, since it blocks
     DROP NOT NULL and dropping its columns; alter_table_options_sql() sets the new one on the
     table. When the node was renamed or moved the clone is copied to the new name and the old
-    table dropped. '' when there is nothing to alter and the name is unchanged.
+    table dropped. Also runs when only a table option changed (comment, clustering, primary key,
+    node or column tags - see table_options_changed()), so every redeploy change goes through the
+    clone. '' when nothing changed and the name is unchanged.
   ===========================================================================#}
   {%- macro alter_clone_swap_sql(alterSql) -%}
       {%- set clonePath = nsNodeVariables.cloneObjectNameFullPath -%}
@@ -1306,8 +1360,9 @@ macroString: |-
       {%- set currentClusterBy = get_clusterby_sql(currentState.columns) | trim -%}
       {%- set clusterByChanged = (currentClusterBy | lower) != (get_clusterby_sql(columns) | trim | lower) -%}
       {%- set tableProperties = get_table_properties_sql(columns) | trim -%}
+      {%- set optionsChanged = (table_options_changed() | trim) == 'true' -%}
 
-      {%- if alterSql | trim | length > 0 or pathChanged %}
+      {%- if alterSql | trim | length > 0 or pathChanged or optionsChanged %}
           {{ stage('Clone Table') }}
           CREATE OR REPLACE TABLE {{ clonePath }} DEEP CLONE {{ currentPath }} {{ tableProperties }}
 
@@ -1339,13 +1394,15 @@ macroString: |-
   {%- endmacro -%}
 
   {#===========================================================================
-    alter_table_options_sql(): table-level changes, made on the table itself (no clone needed):
-      "Alter Table Comment"      COMMENT ON TABLE, when the description changed
-      "Alter Cluster By"         ALTER TABLE ... CLUSTER BY, when the clustering changed
-      "Drop / Add Primary Key"   when the primary key changed (or the table was renamed)
-      "Unset / Set Tags"         changed tags; every tag after the clone replaced the table
-      "Unset / Set Tags: `col`"  changed column tags (columns matched by @id, by their new name); every
-                                 column tag after the clone replaced the table, and on added columns
+    alter_table_options_sql(): table-level options, set on the table after the clone replaced it.
+    Any change to them triggers the clone (alter_clone_swap_sql), and a clone does not reliably
+    carry the table comment, Unity Catalog constraints or tags, so after a replace every option
+    is re-applied in full:
+      "Alter Table Comment"      COMMENT ON TABLE (the description, or NULL when it was removed)
+      "Alter Cluster By"         ALTER TABLE ... CLUSTER BY (a changed clustering was dropped from the clone first)
+      "Drop / Add Primary Key"   the desired primary key
+      "Unset / Set Tags"         every node tag; removed keys unset
+      "Unset / Set Tags: `col`"  every column tag (columns matched by @id, by their new name)
     Call after alter_clone_swap_sql(), before alter_delete_clone_sql().
   ===========================================================================#}
   {%- macro alter_table_options_sql() -%}
@@ -1359,19 +1416,22 @@ macroString: |-
       {%- set desiredPrimaryKey = get_primary_key_sql(columns, node.name) | trim -%}
 
       {%- set optionsSql -%}
-          {%- if currentDescription != desiredDescription %}
+          {%- if currentDescription != desiredDescription or (nsNodeVariables.tableReplaced and desiredDescription | length > 0) %}
               {{ stage('Alter Table Comment') }}
               COMMENT ON TABLE {{ desiredPath }} IS {{ ("'" ~ sql_string(desiredDescription) ~ "'") if desiredDescription | length > 0 else 'NULL' }}
           {%- endif %}
 
-          {#- After a replace the clone's clustering was dropped: set the new one; otherwise alter it in place #}
-          {%- if (currentClusterBy | lower) != (desiredClusterBy | lower) and (desiredClusterBy | length > 0 or not nsNodeVariables.tableReplaced) %}
+          {#- After a replace the clustering is set again (a changed one was dropped from the clone first, so a removed one is already gone) #}
+          {%- set clusterChanged = (currentClusterBy | lower) != (desiredClusterBy | lower) -%}
+          {%- if (desiredClusterBy | length > 0 and (clusterChanged or nsNodeVariables.tableReplaced))
+                  or (clusterChanged and not nsNodeVariables.tableReplaced) %}
               {{ stage('Alter Cluster By') }}
               ALTER TABLE {{ desiredPath }}
               {{ desiredClusterBy if desiredClusterBy | length > 0 else 'CLUSTER BY NONE' }}
           {%- endif %}
 
-          {%- if (currentPrimaryKey | lower) != (desiredPrimaryKey | lower) %}
+          {%- if (currentPrimaryKey | lower) != (desiredPrimaryKey | lower)
+                  or (nsNodeVariables.tableReplaced and desiredPrimaryKey | length > 0) %}
               {%- if currentPrimaryKey | length > 0 or nsNodeVariables.tableReplaced %}
               {{ stage('Drop Primary Key') }}
               ALTER TABLE {{ desiredPath }}
