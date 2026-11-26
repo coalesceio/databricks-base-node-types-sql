@@ -4,7 +4,8 @@
 @materializationType("table")
 @tag("env", "dev")
 SELECT
-    `client_id`   AS `client_id`   @id("dd12cb") @isSurrogateKey @isBusinessKey @description("Client id"),
+    CAST(0 AS BIGINT)              AS `dim_clients_view` @id("d172bf") @isSurrogateKey,
+    `client_id`   AS `client_id`   @id("dd12cb")  @isBusinessKey @description("Client id"),
     `client_name` AS `client_name` @id("162cdd") @description("Client name"),
     `email`       AS `email`       @id("69422f"),
     `region`      AS `region`      @id("3ee4b0"),

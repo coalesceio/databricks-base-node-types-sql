@@ -9,6 +9,9 @@ SELECT
     `email`                              AS `email`                   @id("5819a3"),
     `region`                             AS `region`                  @id("42d682"),
     `update_time`                        AS `update_time`             @id("2cc745") @lastModifiedTracking(2),
-    CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_CREATE_DATE`      @id("341fea") @isSystemCreateDate,
-    CAST(CURRENT_TIMESTAMP AS TIMESTAMP) AS `SYSTEM_UPDATE_DATE`      @id("dd9736") @isSystemUpdateDate
+    1                                        AS `SYSTEM_VERSION`          @id("0f612b") @isSystemVersion,
+    CAST('Y' AS STRING)                      AS `SYSTEM_CURRENT_FLAG`     @id("7fc9ae") @isSystemCurrentFlag,
+    CAST(CURRENT_TIMESTAMP AS TIMESTAMP)     AS `SYSTEM_CREATE_DATE`      @id("752bb1") @isSystemCreateDate,
+    CAST(CURRENT_TIMESTAMP AS TIMESTAMP)     AS `SYSTEM_UPDATE_DATE`      @id("4e5b9d") @isSystemUpdateDate,
+    CAST('2999-12-31 00:00:00' AS TIMESTAMP) AS `SYSTEM_END_DATE`         @id("42ee64") @isSystemEndDate
 FROM {{ ref('TARGET', 'wrk_clients_base') }} `wrk_clients_base`
