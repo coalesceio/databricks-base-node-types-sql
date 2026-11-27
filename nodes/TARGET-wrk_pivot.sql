@@ -10,8 +10,9 @@ WITH sales_cte AS
     UNION ALL
     SELECT 'Mobile', 'USA', 2500
 )
-SELECT *
-FROM sales_cte
+SELECT CAST(product AS STRING) AS product,
+ CAST(sales AS INT) AS sales,
+FROM sales_cte 
 PIVOT
 (
     SUM(sales)

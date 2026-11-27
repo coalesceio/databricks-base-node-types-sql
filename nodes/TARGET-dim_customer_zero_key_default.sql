@@ -17,7 +17,7 @@ SELECT
     `customer`.`c_nationkey`                         AS `c_nationkey`        @id("3c3e62"),
     `customer`.`c_mktsegment`                        AS `c_mktsegment`       @id("64c644"),
     `customer`.`c_acctbal`                           AS `c_acctbal`          @id("d163d5"),
-    `CUSTOMER_ORDERS`.`last_order_date`              AS `last_order_date`    @id("689216"),
+    CAST(`CUSTOMER_ORDERS`.`last_order_date`  AS TIMESTAMP)            AS `last_order_date`    @id("689216"),
     CAST(`CUSTOMER_ORDERS`.`o_custkey` IS NOT NULL AS BOOLEAN) AS `has_orders` @id("e7d792"),
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP)             AS `SYSTEM_CREATE_DATE` @id("6fe79f") @isSystemCreateDate,
     CAST(CURRENT_TIMESTAMP AS TIMESTAMP)             AS `SYSTEM_UPDATE_DATE` @id("8a5550") @isSystemUpdateDate
