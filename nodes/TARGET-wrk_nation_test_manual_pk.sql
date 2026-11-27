@@ -2,7 +2,7 @@
 @nodeType("SQLWork")
 @writeMode("append")
 SELECT
-     `Nation_Key` AS `Nation_Key` @primaryKey(1),
+     `Nation_Key` AS `Nation_Key`,
      `Nation_Name` AS `Nation_Name`,
      CAST(`Region_Key` AS BIGINT) AS `Region_Key`,
      `Nation_Comment` AS `Nation_Comment`
