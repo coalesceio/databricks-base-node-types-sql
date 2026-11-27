@@ -1,5 +1,6 @@
 @id("a5f6b2d1-d9c2-47ed-a3cc-7b8c166d5292")
 @nodeType("SQLWork")
+@writeMode("append")
 SELECT
      `Nation_Key` AS `Nation_Key` @primaryKey(1),
      `Nation_Name` AS `Nation_Name`,
