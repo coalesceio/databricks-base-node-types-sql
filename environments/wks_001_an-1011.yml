@@ -1,0 +1,14 @@
+fileVersion: 1
+id: "1011"
+mappingDefinitions:
+  SRC:
+    database: coalesce
+    schema: sample_data
+  SRC2:
+    database: coalesce
+    schema: sample_source
+  TARGET:
+    database: coalesce
+    schema: target_anan
+name: wks_001_an
+type: Environment
