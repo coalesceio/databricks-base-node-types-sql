@@ -1,7 +1,7 @@
 @id("685e0465-537f-4860-957d-b49b6dc8b87c")
 @nodeType("SQLWork")
 @writeMode("append")
-@description("<text>")
+@description("<text>-changed")
 SELECT
      `Nation_Key` AS `Nation_Key` @notNull ,
      `Nation_Name` AS `Nation_Name`,
