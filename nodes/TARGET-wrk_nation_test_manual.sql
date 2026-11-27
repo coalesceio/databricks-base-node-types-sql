@@ -2,7 +2,7 @@
 @nodeType("SQLWork")
 @writeMode("append")
 SELECT
-     `Nation_Key` AS `Nation_Key`,
+     `Nation_Key` AS `Nation_Key` @notNull,
      `Nation_Name` AS `Nation_Name`,
      `Region_Key` AS  `Region_Key`,
      `Nation_Comment` AS `Nation_Comment`
