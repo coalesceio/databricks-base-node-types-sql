@@ -986,18 +986,21 @@ macroString: |-
       Builds the PRIMARY KEY table constraint from the @primaryKey(<position>) column annotation.
       Columns are ordered by <position> (lowest first). Databricks primary keys are informational
       (Unity Catalog) — not enforced.
+      The constraint is left unnamed: Databricks names it <table>_pk, and a DEEP CLONE (the clone
+      flow, a rename) carries the key over under that same <table>_pk name. So the key only has to be
+      dropped / added when its columns change. nodeName is kept for callers and is not used.
 
   Examples:
-      @primaryKey(1) on N_NATIONKEY                        -> CONSTRAINT `pk_<node>` PRIMARY KEY (`N_NATIONKEY`)
+      @primaryKey(1) on N_NATIONKEY                        -> PRIMARY KEY (`N_NATIONKEY`)
       @primaryKey(1) on N_REGIONKEY, @primaryKey(2) on N_NATIONKEY
-                                                           -> CONSTRAINT `pk_<node>` PRIMARY KEY (`N_REGIONKEY`, `N_NATIONKEY`)
+                                                           -> PRIMARY KEY (`N_REGIONKEY`, `N_NATIONKEY`)
       No column marked                                     -> empty
   ====================================================================================================#}
   {%- macro get_primary_key_sql(nodeColumns, nodeName=none) -%}
       {%- set pk = namespace(items=[]) -%}
       {{- get_primary_key_columns(nodeColumns, pk) -}}
       {%- if pk.items | length > 0 -%}
-          CONSTRAINT `pk_{{ nodeName if nodeName else node.name }}` PRIMARY KEY ({% for c in pk.items %}`{{ c }}`{% if not loop.last %}, {% endif %}{% endfor %})
+          PRIMARY KEY ({% for c in pk.items %}`{{ c }}`{% if not loop.last %}, {% endif %}{% endfor %})
       {%- endif -%}
   {%- endmacro -%}
 
@@ -1105,7 +1108,8 @@ macroString: |-
     materialization type, the partitioning or the identity (surrogate key) column. Every other
     change on a redeploy goes through the clone flow: Clone Table -> column alters on the clone ->
     Replace Table using Clone (the clone is deep-cloned back over the table) -> table options
-    (comment, clustering, primary key, node and column tags, all re-applied in full) -> Delete
+    (comment, clustering, node and column tags re-applied in full; the primary key only when its
+    columns changed, since the clone carries it over) -> Delete
     Table (the clone). This covers column changes, a rename / move, and a change of the table
     comment, @clusterKey, @primaryKey, node-level @tag or column-level @tag.
     Tags are never part of CREATE: on the first deploy they are set with ALTER ... SET TAGS
@@ -1165,67 +1169,67 @@ macroString: |-
       {%- endif %}
   {%- endmacro -%}
 
-    {#===========================================================================
-      alter_modify_columns_sql(): data type, nullability, description and default changes, using
-      the old column names. Databricks takes one ALTER COLUMN action per statement, so each change
-      is its own stage: "Alter Column Data Type: `col`" (only a widening change, e.g. INT -> BIGINT;
-      an "Enable Type Widening" stage sets delta.enableTypeWidening on the clone first, and the
-      Replace Table using Clone carries it to the table) and "Alter Column: `col`" for SET / DROP NOT NULL,
-      COMMENT and SET / DROP DEFAULT. Call before alter_rename_columns_sql().
-    ===========================================================================#}
-    {%- macro alter_modify_columns_sql() -%}
-        {%- set curPk = namespace(items=[]) -%}
-        {{- get_primary_key_columns(currentState.columns, curPk) -}}
-        {%- set desPk = namespace(items=[]) -%}
-        {{- get_primary_key_columns(columns, desPk) -}}
-        {%- set ns = namespace(actions=[]) -%}
-        {%- for curCol in currentState.columns -%}
-            {%- set idMatch = namespace(items=[]) -%}
-            {{- match_columns_by_id(columns, curCol.id, idMatch) -}}
-            {%- set matchingCols = idMatch.items -%}
+  {#===========================================================================
+    alter_modify_columns_sql(): data type, nullability, description and default changes, using
+    the old column names. Databricks takes one ALTER COLUMN action per statement, so each change
+    is its own stage: "Alter Column Data Type: `col`" (only a widening change, e.g. INT -> BIGINT;
+    an "Enable Type Widening" stage sets delta.enableTypeWidening on the clone first, and the
+    Replace Table using Clone carries it to the table) and "Alter Column: `col`" for SET / DROP NOT NULL,
+    COMMENT and SET / DROP DEFAULT. Call before alter_rename_columns_sql().
+  ===========================================================================#}
+  {%- macro alter_modify_columns_sql() -%}
+      {%- set curPk = namespace(items=[]) -%}
+      {{- get_primary_key_columns(currentState.columns, curPk) -}}
+      {%- set desPk = namespace(items=[]) -%}
+      {{- get_primary_key_columns(columns, desPk) -}}
+      {%- set ns = namespace(actions=[]) -%}
+      {%- for curCol in currentState.columns -%}
+          {%- set idMatch = namespace(items=[]) -%}
+          {{- match_columns_by_id(columns, curCol.id, idMatch) -}}
+          {%- set matchingCols = idMatch.items -%}
 
-            {%- if matchingCols -%}
-                {%- set desCol = matchingCols | first -%}
-                {%- set colName = '`' ~ curCol.name ~ '`' -%}
-                {%- set currentNotNull = curCol.nullable == false or curCol.name in curPk.items -%}
-                {%- set desiredNotNull = desCol.nullable == false or desCol.name in desPk.items -%}
-                {#- The identity surrogate key has no DEFAULT #}
-                {%- set currentDefaultValue = (curCol.defaultValue | string | trim) if (curCol.defaultValue and not curCol.isSurrogateKey) else none -%}
-                {%- set desiredDefaultValue = (desCol.defaultValue | string | trim) if (desCol.defaultValue and not desCol.isSurrogateKey) else none -%}
-                {%- set currentDescription = curCol.description | default('', true) | trim -%}
-                {%- set desiredDescription = desCol.description | default('', true) | trim -%}
+          {%- if matchingCols -%}
+              {%- set desCol = matchingCols | first -%}
+              {%- set colName = '`' ~ curCol.name ~ '`' -%}
+              {%- set currentNotNull = curCol.nullable == false or curCol.name in curPk.items -%}
+              {%- set desiredNotNull = desCol.nullable == false or desCol.name in desPk.items -%}
+              {#- The identity surrogate key has no DEFAULT #}
+              {%- set currentDefaultValue = (curCol.defaultValue | string | trim) if (curCol.defaultValue and not curCol.isSurrogateKey) else none -%}
+              {%- set desiredDefaultValue = (desCol.defaultValue | string | trim) if (desCol.defaultValue and not desCol.isSurrogateKey) else none -%}
+              {%- set currentDescription = curCol.description | default('', true) | trim -%}
+              {%- set desiredDescription = desCol.description | default('', true) | trim -%}
 
-                {%- if (curCol.dataType | upper | replace(' ', '')) != (desCol.dataType | upper | replace(' ', '')) -%}
-                    {%- set ns.actions = ns.actions + [{'stage': 'Alter Column Data Type: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' TYPE ' ~ desCol.dataType}] -%}
-                {%- endif -%}
-                {%- if desiredNotNull and not currentNotNull -%}
-                    {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' SET NOT NULL'}] -%}
-                {%- elif currentNotNull and not desiredNotNull -%}
-                    {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' DROP NOT NULL'}] -%}
-                {%- endif -%}
-                {%- if currentDescription != desiredDescription -%}
-                    {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': "ALTER COLUMN " ~ colName ~ " COMMENT '" ~ sql_string(desiredDescription) ~ "'"}] -%}
-                {%- endif -%}
-                {%- if currentDefaultValue != desiredDefaultValue -%}
-                    {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ((' SET DEFAULT ' ~ desiredDefaultValue) if desiredDefaultValue != none else ' DROP DEFAULT')}] -%}
-                {%- endif -%}
-            {%- endif -%}
-        {%- endfor -%}
+              {%- if (curCol.dataType | upper | replace(' ', '')) != (desCol.dataType | upper | replace(' ', '')) -%}
+                  {%- set ns.actions = ns.actions + [{'stage': 'Alter Column Data Type: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' TYPE ' ~ desCol.dataType}] -%}
+              {%- endif -%}
+              {%- if desiredNotNull and not currentNotNull -%}
+                  {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' SET NOT NULL'}] -%}
+              {%- elif currentNotNull and not desiredNotNull -%}
+                  {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ' DROP NOT NULL'}] -%}
+              {%- endif -%}
+              {%- if currentDescription != desiredDescription -%}
+                  {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': "ALTER COLUMN " ~ colName ~ " COMMENT '" ~ sql_string(desiredDescription) ~ "'"}] -%}
+              {%- endif -%}
+              {%- if currentDefaultValue != desiredDefaultValue -%}
+                  {%- set ns.actions = ns.actions + [{'stage': 'Alter Column: ' ~ colName, 'sql': 'ALTER COLUMN ' ~ colName ~ ((' SET DEFAULT ' ~ desiredDefaultValue) if desiredDefaultValue != none else ' DROP DEFAULT')}] -%}
+              {%- endif -%}
+          {%- endif -%}
+      {%- endfor -%}
 
-        {#- ALTER COLUMN ... TYPE needs type widening enabled on the table (Delta rejects even INT -> BIGINT
-            without it): enable it on the clone, once, before the first data type change #}
-        {%- if 'Alter Column Data Type' in (ns.actions | map(attribute='stage') | join('|')) -%}
-            {%- set ns.actions = [{'stage': 'Enable Type Widening', 'sql': "SET TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"}] + ns.actions -%}
-        {%- endif -%}
+      {#- ALTER COLUMN ... TYPE needs type widening enabled on the table (Delta rejects even INT -> BIGINT
+          without it): enable it on the clone, once, before the first data type change #}
+      {%- if 'Alter Column Data Type' in (ns.actions | map(attribute='stage') | join('|')) -%}
+          {%- set ns.actions = [{'stage': 'Enable Type Widening', 'sql': "SET TBLPROPERTIES ('delta.enableTypeWidening' = 'true')"}] + ns.actions -%}
+      {%- endif -%}
 
-        {%- for action in ns.actions %}
-            {{ stage(action.stage) }}
-            ALTER TABLE {{ nsNodeVariables.alterObjectNameFullPath }}
-            {{ action.sql }}
-            {%- set nsNodeVariables.metaDataChanged = true -%}
-        {%- endfor %}
-    {%- endmacro -%}
-    
+      {%- for action in ns.actions %}
+          {{ stage(action.stage) }}
+          ALTER TABLE {{ nsNodeVariables.alterObjectNameFullPath }}
+          {{ action.sql }}
+          {%- set nsNodeVariables.metaDataChanged = true -%}
+      {%- endfor %}
+  {%- endmacro -%}
+
   {#===========================================================================
     alter_add_columns_sql(): "Add Column" — one ALTER for columns with a new id, with their
     description. Delta can not add a column with a DEFAULT, so for each new column with a
@@ -1403,11 +1407,11 @@ macroString: |-
   {#===========================================================================
     alter_table_options_sql(): table-level options, set on the table after the clone replaced it.
     Any change to them triggers the clone (alter_clone_swap_sql), and a clone does not reliably
-    carry the table comment, Unity Catalog constraints or tags, so after a replace every option
-    is re-applied in full:
+    carry the table comment or tags, so after a replace those are re-applied in full:
       "Alter Table Comment"      COMMENT ON TABLE (the description, or NULL when it was removed)
       "Alter Cluster By"         ALTER TABLE ... CLUSTER BY (a changed clustering was dropped from the clone first)
-      "Drop / Add Primary Key"   the desired primary key
+      "Add Primary Key"          only when the key columns changed (the old key was dropped from the clone
+                                 first); an unchanged key is carried over by the clone, as <table>_pk
       "Unset / Set Tags"         every node tag; removed keys unset
       "Unset / Set Tags: `col`"  every column tag (columns matched by @id, by their new name)
     Call after alter_clone_swap_sql(), before alter_delete_clone_sql().
@@ -1437,9 +1441,10 @@ macroString: |-
               {{ desiredClusterBy if desiredClusterBy | length > 0 else 'CLUSTER BY NONE' }}
           {%- endif %}
 
-          {%- if (currentPrimaryKey | lower) != (desiredPrimaryKey | lower)
-                  or (nsNodeVariables.tableReplaced and desiredPrimaryKey | length > 0) %}
-              {%- if currentPrimaryKey | length > 0 or nsNodeVariables.tableReplaced %}
+          {#- The clone carries an unchanged key over (as <table>_pk), so it is only touched when its columns change.
+              A changed key was already dropped from the clone, so after a replace it is only added. #}
+          {%- if (currentPrimaryKey | lower) != (desiredPrimaryKey | lower) %}
+              {%- if currentPrimaryKey | length > 0 and not nsNodeVariables.tableReplaced %}
               {{ stage('Drop Primary Key') }}
               ALTER TABLE {{ desiredPath }}
               DROP PRIMARY KEY IF EXISTS
