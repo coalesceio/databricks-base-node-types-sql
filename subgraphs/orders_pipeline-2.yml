@@ -1,0 +1,11 @@
+fileVersion: 1
+id: "2"
+name: orders_pipeline
+steps:
+  - 52722471-4712-496c-b5dd-09f4d63b767e
+  - 8d37838d-8440-4f92-a30d-38b99623364c
+  - 92b3f613-1065-4d1f-8140-4b1fa230e04b
+  - a8c4a1c1-b61b-452f-8ffc-5bf800a9aa03
+  - e2163b63-2547-489a-a15a-70a267d53ee9
+  - eab7e0fb-c463-4da8-9ce3-da522e0ca4dd
+type: Subgraph

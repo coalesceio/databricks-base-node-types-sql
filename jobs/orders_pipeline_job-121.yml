@@ -1,0 +1,6 @@
+excludeSelector: ""
+fileVersion: 1
+id: "121"
+includeSelector: "{ location: \"TARGET\" name: \"wrk_order_lines\" } OR { location: \"TARGET\" name: \"wrk_supplier_nation\" } OR { location: \"TARGET\" name: \"dim_part\" } OR { location: \"TARGET\" name: \"dim_supplier\" } OR { location: \"TARGET\" name: \"fct_order_lines\" } OR { location: \"TARGET\" name: \"fct_daily_order_summary\" }"
+name: orders_pipeline_job
+type: Job
