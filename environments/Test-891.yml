@@ -3,12 +3,12 @@ id: "891"
 mappingDefinitions:
   SRC:
     database: coalesce
-    schema: sample_data
+    schema: sample_source
   SRC2:
-    database: ""
-    schema: ""
+    database: coalesce
+    schema: sample_data
   TARGET:
     database: coalesce
-    schema: target_dev
+    schema: target_qa_tan
 name: Test
 type: Environment
