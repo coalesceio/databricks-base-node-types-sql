@@ -88,18 +88,27 @@ Coalesce permits you to copy and modify this script for the purposes of using wi
     {#== Pre-SQL ==#}
     {{ run_pre_post_sql('Pre') }}
 
-    {# == Determine write mode: truncateInsert (default) or append == #}
+    {# == Determine write mode: truncateInsert or append (default), matched case-insensitively == #}
     {%- if config.writeMode is defined and config.writeMode.parameters is defined and config.writeMode.parameters | length > 0 %}
-        {%- set writeMode = config.writeMode.parameters[0] | trim %}
+        {%- set writeModeRaw = config.writeMode.parameters[0] | string | trim %}
     {%- else %}
-        {%- set writeMode = 'truncateInsert' %}
+        {%- set writeModeRaw = 'append' %}
+    {%- endif %}
+    {%- set writeMode = writeModeRaw | lower %}
+
+    {# == An unrecognised write mode stops the load instead of silently truncating the table == #}
+    {%- if writeMode not in ('truncateinsert', 'append') %}
+        {%- set reason = '@writeMode("' ~ writeModeRaw ~ '") is not a recognised write mode. Use "truncateInsert" or "append".' %}
+        {{ test_stage('Invalid configuration: writeMode', false) }}
+        -- {{ reason }}
+        {{ fail_sql(true, reason) }}
     {%- endif %}
 
-    {# == Set insert keyword based on writeMode == #}
-    {%- if writeMode | lower == 'append' %}
-        {%- set insertKeyword = 'INTO' %}
-    {%- else %}
-        {%- set insertKeyword = 'OVERWRITE' %}
+    {# == truncateInsert: empty the table before loading (TRUNCATE keeps the table, its keys, clustering / partitioning and tags).
+          Runs before the zero key record so that record is loaded again after the truncate. == #}
+    {%- if writeMode == 'truncateinsert' -%}
+        {{ stage('Truncate ' + materializationType) }}
+        TRUNCATE TABLE {{ ref_no_link(node.location.name, node.name) }}
     {%- endif %}
 
     {%- if config.zeroKey is defined and hasSurrogateKey %}

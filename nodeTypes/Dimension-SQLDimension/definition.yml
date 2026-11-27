@@ -56,7 +56,8 @@ metadata:
             • Controls how data is written to the target table.
             • truncateInsert clears the table before loading, replacing its contents entirely;
             • append inserts the new rows alongside whatever is already there.
-            • If not specified in the SQL, defaults to truncateInsert.
+            • If not specified in the SQL, defaults to append.
+            • ⚠️ truncateInsert empties the dimension on every run: SCD Type 2 history is lost and surrogate keys are regenerated, so facts that reference the old keys no longer match.
             • Ignored on views.
           isRequired: false
           parameters:
